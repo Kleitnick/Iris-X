@@ -4,7 +4,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
-local TweenService = game:GetService("TweenService")
 local LP = Players.LocalPlayer
 local PG = LP:WaitForChild("PlayerGui")
 
@@ -282,6 +281,8 @@ local function createNotification(text, opts)
     local position = opts.Position or DefaultNotifyPosition
     local title = opts.Title or "Iris-X"
     local key = opts.Key
+    local themeName = opts.Theme or "dark"
+    local th = THEMES[themeName] or THEMES.dark
 
     if not NOTIFY_TEXT_COLORS[ntype] then ntype = "info" end
     if not NOTIFY_POSITIONS[position] then position = "TopRight" end
@@ -307,16 +308,16 @@ local function createNotification(text, opts)
         Size = UDim2.fromOffset(260, 58),
         Position = cfg.offset,
         AnchorPoint = cfg.anchor,
-        BackgroundColor3 = THEMES.dark.WindowBgColor,
-        BackgroundTransparency = THEMES.dark.WindowBgTransparency,
+        BackgroundColor3 = th.WindowBgColor,
+        BackgroundTransparency = th.WindowBgTransparency,
         BorderSizePixel = 0,
     }, NotifyGui)
-    UIStroke(notifFrame, 1, THEMES.dark.BorderColor, THEMES.dark.BorderTransparency)
+    UIStroke(notifFrame, 1, th.BorderColor, th.BorderTransparency)
 
     local titleBar = new("Frame", {
         Size = UDim2.new(1, 0, 0, 19),
-        BackgroundColor3 = THEMES.dark.TitleBgActiveColor,
-        BackgroundTransparency = THEMES.dark.TitleBgActiveTransparency,
+        BackgroundColor3 = th.TitleBgActiveColor,
+        BackgroundTransparency = th.TitleBgActiveTransparency,
         BorderSizePixel = 0,
     }, notifFrame)
 
@@ -325,7 +326,7 @@ local function createNotification(text, opts)
         Position = UDim2.new(0, 4, 0, 0),
         BackgroundTransparency = 1,
         Text = title,
-        TextColor3 = THEMES.dark.TextColor,
+        TextColor3 = th.TextColor,
         TextSize = 13,
         Font = Enum.Font.Code,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -428,6 +429,7 @@ function IrisX:CreateWindow(opts)
     local connections = {}
     local drawings = {}
     local rollbacks = {}
+    local tabGroups = {}
 
     local function reg(inst, props)
         table.insert(themeTargets, { inst = inst, props = props })
@@ -454,6 +456,9 @@ function IrisX:CreateWindow(opts)
                 local value = CFG[p[i + 1]]
                 if value ~= nil then target.inst[p[i]] = value end
             end
+        end
+        for _, group in ipairs(tabGroups) do
+            if group.Refresh then group.Refresh() end
         end
     end
 
@@ -487,26 +492,26 @@ function IrisX:CreateWindow(opts)
 
     local function bindInteraction(prop, button, highlightee, colorKeys)
         local exited = false
-        button.MouseEnter:Connect(function()
+        track(button.MouseEnter:Connect(function()
             setColor(highlightee, prop, CFG[colorKeys.HoveredColor])
             setTrans(highlightee, prop, CFG[colorKeys.HoveredTransparency])
             exited = false
-        end)
-        button.MouseLeave:Connect(function()
+        end))
+        track(button.MouseLeave:Connect(function()
             setColor(highlightee, prop, CFG[colorKeys.Color])
             setTrans(highlightee, prop, CFG[colorKeys.Transparency])
             exited = true
-        end)
-        button.InputBegan:Connect(function(input)
+        end))
+        track(button.InputBegan:Connect(function(input)
             if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
             setColor(highlightee, prop, CFG[colorKeys.ActiveColor])
             setTrans(highlightee, prop, CFG[colorKeys.ActiveTransparency])
-        end)
-        button.InputEnded:Connect(function(input)
+        end))
+        track(button.InputEnded:Connect(function(input)
             if input.UserInputType ~= Enum.UserInputType.MouseButton1 or exited then return end
             setColor(highlightee, prop, CFG[colorKeys.HoveredColor])
             setTrans(highlightee, prop, CFG[colorKeys.HoveredTransparency])
-        end)
+        end))
     end
 
     local Window = new("ScreenGui", {
@@ -588,7 +593,7 @@ function IrisX:CreateWindow(opts)
     UIPadding(ChildContainer, CFG.WindowPadding)
     UIListLayout(ChildContainer, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
 
-	    new("Frame", {
+    new("Frame", {
         Size = UDim2.fromOffset(0, CFG.WindowPadding.Y + CFG.FramePadding.Y),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
@@ -664,7 +669,8 @@ function IrisX:CreateWindow(opts)
         HoveredColor = "ButtonHoveredColor", HoveredTransparency = "ButtonHoveredTransparency",
         ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
     })
-    new("Frame", {
+
+    local HideIcon = new("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Size = UDim2.fromOffset(math.floor(0.7 * TitleButtonSize), 2),
         Position = UDim2.fromScale(0.5, 0.5),
@@ -672,6 +678,7 @@ function IrisX:CreateWindow(opts)
         BackgroundTransparency = CFG.TextTransparency,
         BorderSizePixel = 0,
     }, HideButton)
+    reg(HideIcon, { "BackgroundColor3", "TextColor", "BackgroundTransparency", "TextTransparency" })
 
     local CloseButton = new("TextButton", {
         Name = "CloseButton",
@@ -786,6 +793,7 @@ function IrisX:CreateWindow(opts)
     Win._track = track
     Win._trackDrawing = trackDrawing
     Win._trackRollback = trackRollback
+    Win._theme = theme
 
     function Win:Text(str, parent, opts)
         opts = opts or {}
@@ -1159,6 +1167,7 @@ function IrisX:CreateWindow(opts)
         applyFrameStyle(Field)
         applyTextStyle(Field)
         reg(Field, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
+        reg(Field, { "PlaceholderColor3", "TextDisabledColor" })
         bindInteraction("Background", Field, Field, {
             Color = "FrameBgColor", Transparency = "FrameBgTransparency",
             HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
@@ -1433,6 +1442,21 @@ function IrisX:CreateWindow(opts)
         local current = nil
         local Group = {}
 
+        local function updateTabColors()
+            for _, t in ipairs(tabs) do
+                if t == current then
+                    t.Instance.BackgroundColor3 = CFG.TabActiveColor
+                    t.Instance.BackgroundTransparency = CFG.TabActiveTransparency
+                else
+                    t.Instance.BackgroundColor3 = CFG.TabColor
+                    t.Instance.BackgroundTransparency = CFG.TabTransparency
+                end
+            end
+        end
+
+        Group.Refresh = updateTabColors
+        table.insert(tabGroups, Group)
+
         function Group:AddTab(title)
             local TabButton = new("TextButton", {
                 AutomaticSize = Enum.AutomaticSize.XY,
@@ -1473,18 +1497,18 @@ function IrisX:CreateWindow(opts)
                 Group:SelectTab(entry)
             end))
 
-            TabButton.MouseEnter:Connect(function()
+            track(TabButton.MouseEnter:Connect(function()
                 if current ~= entry then
                     TabButton.BackgroundColor3 = CFG.TabHoveredColor
                     TabButton.BackgroundTransparency = CFG.TabHoveredTransparency
                 end
-            end)
-            TabButton.MouseLeave:Connect(function()
+            end))
+            track(TabButton.MouseLeave:Connect(function()
                 if current ~= entry then
                     TabButton.BackgroundColor3 = CFG.TabColor
                     TabButton.BackgroundTransparency = CFG.TabTransparency
                 end
-            end)
+            end))
 
             if current == nil then Group:SelectTab(entry) end
 
@@ -1495,15 +1519,12 @@ function IrisX:CreateWindow(opts)
             for _, t in ipairs(tabs) do
                 if t == entry then
                     t.Body.Visible = true
-                    t.Instance.BackgroundColor3 = CFG.TabActiveColor
-                    t.Instance.BackgroundTransparency = CFG.TabActiveTransparency
                 else
                     t.Body.Visible = false
-                    t.Instance.BackgroundColor3 = CFG.TabColor
-                    t.Instance.BackgroundTransparency = CFG.TabTransparency
                 end
             end
             current = entry
+            updateTabColors()
         end
 
         function Group:GetCurrent() return current end
@@ -1559,19 +1580,19 @@ function IrisX:CreateWindow(opts)
         UIListLayout(Body, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
 
         local isOpen = false
-        Header.MouseEnter:Connect(function()
+        track(Header.MouseEnter:Connect(function()
             Header.BackgroundColor3 = CFG.HeaderHoveredColor
             Header.BackgroundTransparency = CFG.HeaderHoveredTransparency
-        end)
-        Header.MouseLeave:Connect(function()
+        end))
+        track(Header.MouseLeave:Connect(function()
             Header.BackgroundColor3 = CFG.HeaderColor
             Header.BackgroundTransparency = CFG.HeaderTransparency
-        end)
-        Header.MouseButton1Click:Connect(function()
+        end))
+        track(Header.MouseButton1Click:Connect(function()
             isOpen = not isOpen
             Body.Visible = isOpen
             Arrow.Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
-        end)
+        end))
 
         return Body
     end
@@ -1606,20 +1627,20 @@ function IrisX:CreateWindow(opts)
 
     function Win:AddHideButton(bind, parent)
         bind = bind or Enum.KeyCode.Insert
-        local btn
-        btn = Win:Button("Hide UI (" .. bind.Name .. ")", function()
+        if bind ~= Enum.KeyCode.Insert then
+            track(UserInputService.InputBegan:Connect(function(input, gpe)
+                if gpe then return end
+                if input.KeyCode == bind then
+                    state.hidden = not state.hidden
+                    WindowButton.Visible = not state.hidden
+                end
+            end))
+        end
+        return Win:Button("Hide UI (" .. bind.Name .. ")", function()
             state.hidden = true
             WindowButton.Visible = false
-            IrisX:Notify("UI hidden. Press " .. bind.Name .. " to show.", {Type = "info", Duration = 2})
+            IrisX:Notify("UI hidden. Press " .. bind.Name .. " to show.", {Type = "info", Duration = 2, Theme = theme})
         end, parent)
-        track(UserInputService.InputBegan:Connect(function(input, gpe)
-            if gpe then return end
-            if input.KeyCode == bind then
-                state.hidden = not state.hidden
-                WindowButton.Visible = not state.hidden
-            end
-        end))
-        return btn
     end
 
     function Win:AddUnloadButton(parent)
@@ -1627,6 +1648,11 @@ function IrisX:CreateWindow(opts)
     end
 
     function Win:Destroy()
+        for _, group in ipairs(tabGroups) do
+            local idx = table.find(tabGroups, group)
+            if idx then table.remove(tabGroups, idx) end
+        end
+
         for _, conn in ipairs(connections) do
             pcall(function() conn:Disconnect() end)
         end
@@ -1657,7 +1683,7 @@ function IrisX:CreateWindow(opts)
     track(HideButton.MouseButton1Click:Connect(function()
         state.hidden = not state.hidden
         WindowButton.Visible = not state.hidden
-        IrisX:Notify(state.hidden and "UI hidden" or "UI shown", {Type = "info", Duration = 2})
+        IrisX:Notify(state.hidden and "UI hidden" or "UI shown", {Type = "info", Duration = 2, Theme = theme})
     end))
 
     local isOpen = true
@@ -1671,6 +1697,14 @@ function IrisX:CreateWindow(opts)
             state.size = Vector2.new(state.size.X, TitleBar.AbsoluteSize.Y)
         end
         applyWindow()
+    end))
+
+    track(UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.Insert then
+            state.hidden = not state.hidden
+            WindowButton.Visible = not state.hidden
+        end
     end))
 
     return Win
