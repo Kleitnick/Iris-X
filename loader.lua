@@ -1207,4 +1207,473 @@ function IrisX:CreateWindow(opts)
         })
 
         track(b.MouseButton1Click:Connect(function()
-... (19 KB left)
+            listening = true
+            b.Text = text .. ": ..."
+        end))
+
+        track(UserInputService.InputBegan:Connect(function(input, gpe)
+            if not listening or gpe then return end
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                currentKey = input.KeyCode
+                b.Text = text .. ": " .. currentKey.Name
+                listening = false
+                if callback then callback(currentKey) end
+            end
+        end))
+
+        return {
+            Instance = b,
+            Get = function() return currentKey end,
+        }
+    end
+
+    function Win:Combo(text, options, default, callback, parent)
+        options = options or {}
+        local container = parent or ChildContainer
+        local selected = default or options[1]
+        local isOpen = false
+
+        local frameHeight = CFG.TextSize + 2 * CFG.FramePadding.Y
+        local Combo = new("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(CFG.ItemWidth, UDim.new(0, 0)),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+        }, container)
+        local l = UIListLayout(Combo, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
+        l.VerticalAlignment = Enum.VerticalAlignment.Center
+
+        local Preview = new("TextButton", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(CFG.ContentWidth, UDim.new(0, 0)),
+            BackgroundColor3 = CFG.FrameBgColor,
+            BackgroundTransparency = CFG.FrameBgTransparency,
+            BorderSizePixel = 0, Text = "", AutoButtonColor = false,
+            ClipsDescendants = true, ZIndex = 2,
+        }, Combo)
+        applyFrameStyle(Preview)
+        reg(Preview, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
+
+        bindInteraction("Background", Preview, Preview, {
+            Color = "FrameBgColor", Transparency = "FrameBgTransparency",
+            HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
+            ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
+        })
+
+        local PreviewText = new("TextLabel", {
+            Size = UDim2.new(1, -frameHeight, 1, 0),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Text = tostring(selected),
+        }, Preview)
+        applyTextStyle(PreviewText)
+        UIPadding(PreviewText, CFG.FramePadding)
+
+        local ArrowBox = new("Frame", {
+            Size = UDim2.new(0, frameHeight, 1, 0),
+            Position = UDim2.new(1, -frameHeight, 0, 0),
+            BackgroundColor3 = CFG.ButtonColor,
+            BackgroundTransparency = CFG.ButtonTransparency,
+            BorderSizePixel = 0,
+        }, Preview)
+        reg(ArrowBox, { "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency" })
+
+        local Arrow = new("ImageLabel", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Size = UDim2.fromOffset(math.floor(frameHeight * 0.6), math.floor(frameHeight * 0.6)),
+            Position = UDim2.fromScale(0.5, 0.5),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Image = ICON.DOWN_POINTING_TRIANGLE,
+            ImageColor3 = CFG.TextColor,
+            ImageTransparency = CFG.TextTransparency,
+            ScaleType = Enum.ScaleType.Fit,
+        }, ArrowBox)
+        reg(Arrow, { "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency" })
+
+        local TextLabel = new("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.XY,
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            LayoutOrder = 1, Text = text,
+        }, Combo)
+        applyTextStyle(TextLabel)
+
+        local Popup = new("ScrollingFrame", {
+            BackgroundColor3 = CFG.PopupBgColor,
+            BackgroundTransparency = CFG.PopupBgTransparency,
+            BorderSizePixel = 0,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarImageTransparency = CFG.ScrollbarGrabTransparency,
+            ScrollBarImageColor3 = CFG.ScrollbarGrabColor,
+            ScrollBarThickness = CFG.ScrollbarSize,
+            CanvasSize = UDim2.fromScale(0, 0),
+            VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
+            TopImage = ICON.BLANK_SQUARE,
+            MidImage = ICON.BLANK_SQUARE,
+            BottomImage = ICON.BLANK_SQUARE,
+            ClipsDescendants = true,
+            Visible = false,
+            ZIndex = 500,
+        }, PopupGui)
+        UIStroke(Popup, CFG.WindowBorderSize, CFG.BorderColor, CFG.BorderTransparency)
+        UIPadding(Popup, Vector2.new(2, CFG.WindowPadding.Y))
+        local popupLayout = UIListLayout(Popup, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
+        popupLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+        reg(Popup, { "BackgroundColor3", "PopupBgColor", "BackgroundTransparency", "PopupBgTransparency" })
+        reg(Popup, { "ScrollBarImageColor3", "ScrollbarGrabColor", "ScrollBarImageTransparency", "ScrollbarGrabTransparency" })
+
+        local optionButtons = {}
+        for _, opt in ipairs(options) do
+            local ob = new("TextButton", {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Size = UDim2.new(1, 0, 0, frameHeight),
+                BackgroundColor3 = CFG.FrameBgColor,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0, Text = tostring(opt), AutoButtonColor = false,
+            }, Popup)
+            applyTextStyle(ob)
+            UIPadding(ob, CFG.FramePadding)
+            bindInteraction("Background", ob, ob, {
+                Color = "FrameBgColor", Transparency = 1,
+                HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
+                ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
+            })
+            table.insert(optionButtons, { instance = ob, value = opt })
+        end
+
+        local comboControl
+
+        local function closePopup()
+            if not isOpen then return end
+            isOpen = false
+            Popup.Visible = false
+            OpenPopups[comboControl] = nil
+        end
+
+        local function openPopup()
+            closeAllPopups()
+            isOpen = true
+            Popup.Visible = true
+            OpenPopups[comboControl] = { Close = closePopup }
+
+            local previewPos = Preview.AbsolutePosition - GuiService:GetGuiInset()
+            local previewSize = Preview.AbsoluteSize
+            local contentH = popupLayout.AbsoluteContentSize.Y + 2 * CFG.WindowPadding.Y
+            local screenSize = workspace.CurrentCamera.ViewportSize
+
+            local x = previewPos.X
+            local y = previewPos.Y + previewSize.Y + 1
+            if y + contentH > screenSize.Y then
+                y = previewPos.Y - contentH - 1
+            end
+
+            Popup.Position = UDim2.fromOffset(x, y)
+            Popup.Size = UDim2.fromOffset(previewSize.X, math.min(contentH, 200))
+        end
+
+        for _, entry in ipairs(optionButtons) do
+            track(entry.instance.MouseButton1Click:Connect(function()
+                selected = entry.value
+                PreviewText.Text = tostring(selected)
+                closePopup()
+                if callback then callback(selected) end
+            end))
+        end
+
+        track(Preview.MouseButton1Click:Connect(function()
+            if isOpen then closePopup() else openPopup() end
+        end))
+
+        comboControl = {
+            Instance = Combo,
+            Popup = Popup,
+            Get = function() return selected end,
+            Set = function(v)
+                selected = v
+                PreviewText.Text = tostring(selected)
+            end,
+            Close = closePopup,
+        }
+
+        return comboControl
+    end
+
+    function Win:Tabs(parent)
+        local container = parent or ChildContainer
+
+        local TabBar = new("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+        }, container)
+        UIListLayout(TabBar, Enum.FillDirection.Vertical, UDim.new(0, 0))
+
+        local Bar = new("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+        }, TabBar)
+        UIListLayout(Bar, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
+
+        local Underline = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = CFG.TabActiveColor,
+            BackgroundTransparency = CFG.TabActiveTransparency,
+            BorderSizePixel = 0, LayoutOrder = 1,
+        }, TabBar)
+        reg(Underline, { "BackgroundColor3", "TabActiveColor", "BackgroundTransparency", "TabActiveTransparency" })
+
+        local Body = new("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            LayoutOrder = 2, ClipsDescendants = true,
+        }, TabBar)
+        UIPadding(Body, Vector2.new(0, CFG.ItemSpacing.Y))
+        UIListLayout(Body, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
+
+        local tabs = {}
+        local current = nil
+        local Group = {}
+
+        function Group:AddTab(title)
+            local TabButton = new("TextButton", {
+                AutomaticSize = Enum.AutomaticSize.XY,
+                Size = UDim2.fromOffset(0, 0),
+                BackgroundColor3 = CFG.TabColor,
+                BackgroundTransparency = CFG.TabTransparency,
+                BorderSizePixel = 0, Text = "", AutoButtonColor = false,
+            }, Bar)
+            UIPadding(TabButton, Vector2.new(CFG.FramePadding.X, 0))
+            applyFrameStyle(TabButton, true)
+            local tl = UIListLayout(TabButton, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
+            tl.VerticalAlignment = Enum.VerticalAlignment.Center
+
+            local TabLabel = new("TextLabel", {
+                AutomaticSize = Enum.AutomaticSize.XY,
+                BackgroundTransparency = 1, BorderSizePixel = 0,
+                Text = title,
+            }, TabButton)
+            applyTextStyle(TabLabel)
+            UIPadding(TabLabel, Vector2.new(0, CFG.FramePadding.Y))
+
+            local TabBody = new("Frame", {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Size = UDim2.fromScale(1, 0),
+                BackgroundTransparency = 1, BorderSizePixel = 0,
+                Visible = false,
+            }, Body)
+            UIListLayout(TabBody, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
+
+            local entry = {
+                Instance = TabButton,
+                Body = TabBody,
+                Title = title,
+            }
+            table.insert(tabs, entry)
+
+            track(TabButton.MouseButton1Click:Connect(function()
+                Group:SelectTab(entry)
+            end))
+
+            TabButton.MouseEnter:Connect(function()
+                if current ~= entry then
+                    TabButton.BackgroundColor3 = CFG.TabHoveredColor
+                    TabButton.BackgroundTransparency = CFG.TabHoveredTransparency
+                end
+            end)
+            TabButton.MouseLeave:Connect(function()
+                if current ~= entry then
+                    TabButton.BackgroundColor3 = CFG.TabColor
+                    TabButton.BackgroundTransparency = CFG.TabTransparency
+                end
+            end)
+
+            if current == nil then Group:SelectTab(entry) end
+
+            return TabBody
+        end
+
+        function Group:SelectTab(entry)
+            for _, t in ipairs(tabs) do
+                if t == entry then
+                    t.Body.Visible = true
+                    t.Instance.BackgroundColor3 = CFG.TabActiveColor
+                    t.Instance.BackgroundTransparency = CFG.TabActiveTransparency
+                else
+                    t.Body.Visible = false
+                    t.Instance.BackgroundColor3 = CFG.TabColor
+                    t.Instance.BackgroundTransparency = CFG.TabTransparency
+                end
+            end
+            current = entry
+        end
+
+        function Group:GetCurrent() return current end
+
+        return Group
+    end
+
+    function Win:Section(title, parent)
+        local container = parent or ChildContainer
+        local Section = new("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+        }, container)
+        UIListLayout(Section, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
+
+        local Header = new("TextButton", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.fromScale(1, 0),
+            BackgroundColor3 = CFG.HeaderColor,
+            BackgroundTransparency = CFG.HeaderTransparency,
+            BorderSizePixel = 0, Text = "", AutoButtonColor = false,
+        }, Section)
+        applyFrameStyle(Header)
+        local hl = UIListLayout(Header, Enum.FillDirection.Horizontal, UDim.new(0, CFG.FramePadding.X))
+        hl.VerticalAlignment = Enum.VerticalAlignment.Center
+        reg(Header, { "BackgroundColor3", "HeaderColor", "BackgroundTransparency", "HeaderTransparency" })
+
+        local Arrow = new("ImageLabel", {
+            Size = UDim2.fromOffset(CFG.TextSize, math.ceil(CFG.TextSize * 0.8)),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Image = ICON.RIGHT_POINTING_TRIANGLE,
+            ImageColor3 = CFG.TextColor,
+            ImageTransparency = CFG.TextTransparency,
+            ScaleType = Enum.ScaleType.Fit,
+        }, Header)
+        reg(Arrow, { "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency" })
+
+        local Label = new("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.XY,
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Text = title,
+        }, Header)
+        applyTextStyle(Label)
+
+        local Body = new("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.fromScale(1, 0),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Visible = false,
+        }, Section)
+        UIPadding(Body, Vector2.new(CFG.ItemInnerSpacing.X + 4, 0))
+        UIListLayout(Body, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
+
+        local isOpen = false
+        Header.MouseEnter:Connect(function()
+            Header.BackgroundColor3 = CFG.HeaderHoveredColor
+            Header.BackgroundTransparency = CFG.HeaderHoveredTransparency
+        end)
+        Header.MouseLeave:Connect(function()
+            Header.BackgroundColor3 = CFG.HeaderColor
+            Header.BackgroundTransparency = CFG.HeaderTransparency
+        end)
+        Header.MouseButton1Click:Connect(function()
+            isOpen = not isOpen
+            Body.Visible = isOpen
+            Arrow.Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
+        end)
+
+        return Body
+    end
+
+    function Win:SetTheme(name)
+        if not THEMES[name] then return end
+        theme = name
+        for k, v in pairs(THEMES[name]) do CFG[k] = v end
+        refreshTheme()
+    end
+
+    function Win:GetTheme() return theme end
+
+    function Win:ToggleTheme()
+        if theme == "dark" then self:SetTheme("light") else self:SetTheme("dark") end
+        return theme
+    end
+
+    function Win:AddThemeButton(parent)
+        local btn
+        btn = Win:Button("Theme: " .. (theme == "dark" and "Dark" or "Light"), function()
+            if theme == "dark" then
+                Win:SetTheme("light")
+                btn.Text = "Theme: Light"
+            else
+                Win:SetTheme("dark")
+                btn.Text = "Theme: Dark"
+            end
+        end, parent)
+        return btn
+    end
+
+    function Win:AddHideButton(bind, parent)
+        bind = bind or Enum.KeyCode.Insert
+        local btn
+        btn = Win:Button("Hide UI (" .. bind.Name .. ")", function()
+            state.hidden = true
+            WindowButton.Visible = false
+            IrisX:Notify("UI hidden. Press " .. bind.Name .. " to show.", {Type = "info", Duration = 2})
+        end, parent)
+        track(UserInputService.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            if input.KeyCode == bind then
+                state.hidden = not state.hidden
+                WindowButton.Visible = not state.hidden
+            end
+        end))
+        return btn
+    end
+
+    function Win:AddUnloadButton(parent)
+        return Win:Button("Unload Script", function() Win:Destroy() end, parent)
+    end
+
+    function Win:Destroy()
+        for _, conn in ipairs(connections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        connections = {}
+
+        for _, d in ipairs(drawings) do
+            pcall(function() d:Remove() end)
+        end
+        drawings = {}
+
+        for _, fn in ipairs(rollbacks) do
+            pcall(fn)
+        end
+        rollbacks = {}
+
+        for _, target in ipairs(themeTargets) do
+            if target.inst and target.inst.Parent then
+                target.inst:Destroy()
+            end
+        end
+        themeTargets = {}
+
+        if Window then Window:Destroy() end
+    end
+
+    track(CloseButton.MouseButton1Click:Connect(function() Win:Destroy() end))
+
+    track(HideButton.MouseButton1Click:Connect(function()
+        state.hidden = not state.hidden
+        WindowButton.Visible = not state.hidden
+        IrisX:Notify(state.hidden and "UI hidden" or "UI shown", {Type = "info", Duration = 2})
+    end))
+
+    local isOpen = true
+    track(CollapseButton.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        ChildContainer.Visible = isOpen
+        CollapseArrow.Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
+        if isOpen then
+            state.size = size
+        else
+            state.size = Vector2.new(state.size.X, TitleBar.AbsoluteSize.Y)
+        end
+        applyWindow()
+    end))
+
+    return Win
+end
+
+return IrisX
