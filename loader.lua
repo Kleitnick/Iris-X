@@ -1,11 +1,22 @@
--- Iris-X
-
+-- Iris-X (Hardened Build)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local LP = Players.LocalPlayer
 local PG = LP:WaitForChild("PlayerGui")
+
+-- Teardown previous global runtime connections on re-execution
+local GlobalEnv = (getgenv and getgenv()) or _G
+if GlobalEnv.__IrisX_Cleanup then
+    pcall(GlobalEnv.__IrisX_Cleanup)
+end
+
+local GlobalConnections = {}
+local function trackGlobal(conn)
+    table.insert(GlobalConnections, conn)
+    return conn
+end
 
 local ICON = {
     BLANK_SQUARE            = "rbxassetid://83265623867126",
@@ -140,11 +151,11 @@ local NOTIFY_PREFIX = {
 }
 
 local NOTIFY_POSITIONS = {
-    TopLeft = { anchor = Vector2.new(0, 0), dir = Vector2.new(0, 1), offset = UDim2.new(0, 10, 0, 10) },
-    TopRight = { anchor = Vector2.new(1, 0), dir = Vector2.new(0, 1), offset = UDim2.new(1, -10, 0, 10) },
-    TopCenter = { anchor = Vector2.new(0.5, 0), dir = Vector2.new(0, 1), offset = UDim2.new(0.5, 0, 0, 10) },
-    BottomLeft = { anchor = Vector2.new(0, 1), dir = Vector2.new(0, -1), offset = UDim2.new(0, 10, 1, -10) },
-    BottomRight = { anchor = Vector2.new(1, 1), dir = Vector2.new(0, -1), offset = UDim2.new(1, -10, 1, -10) },
+    TopLeft      = { anchor = Vector2.new(0, 0),   dir = Vector2.new(0, 1),  offset = UDim2.new(0, 10, 0, 10) },
+    TopRight     = { anchor = Vector2.new(1, 0),   dir = Vector2.new(0, 1),  offset = UDim2.new(1, -10, 0, 10) },
+    TopCenter    = { anchor = Vector2.new(0.5, 0), dir = Vector2.new(0, 1),  offset = UDim2.new(0.5, 0, 0, 10) },
+    BottomLeft   = { anchor = Vector2.new(0, 1),   dir = Vector2.new(0, -1), offset = UDim2.new(0, 10, 1, -10) },
+    BottomRight  = { anchor = Vector2.new(1, 1),   dir = Vector2.new(0, -1), offset = UDim2.new(1, -10, 1, -10) },
     BottomCenter = { anchor = Vector2.new(0.5, 1), dir = Vector2.new(0, -1), offset = UDim2.new(0.5, 0, 1, -10) },
 }
 
@@ -201,6 +212,8 @@ local RootGui = new("ScreenGui", {
     Name = "IrisX",
     ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    DisplayOrder = 127,
+    ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
     IgnoreGuiInset = false,
 }, PG)
 
@@ -224,21 +237,33 @@ local function getMouse()
     return UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
 end
 
+local function isPointInGui(pt, guiObj)
+    if not guiObj or not guiObj.Visible then return false end
+    local pos = guiObj.AbsolutePosition
+    local sz = guiObj.AbsoluteSize
+    return pt.X >= pos.X and pt.X <= (pos.X + sz.X) and pt.Y >= pos.Y and pt.Y <= (pos.Y + sz.Y)
+end
+
 local OpenPopups = {}
 
 local function closeAllPopups(except)
-    for popup in pairs(OpenPopups) do
-        if popup ~= except then popup.Close() end
+    for ctrl, data in pairs(OpenPopups) do
+        if ctrl ~= except then data.Close() end
     end
 end
 
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
+-- Bounds-checked outside click closer so clicking inside popup scrollbar or preview doesn't race
+trackGlobal(UserInputService.InputBegan:Connect(function(input, gpe)
     if input.UserInputType == Enum.UserInputType.MouseButton1
        or input.UserInputType == Enum.UserInputType.Touch then
-        closeAllPopups()
+        local mousePos = getMouse()
+        for ctrl, data in pairs(OpenPopups) do
+            if not isPointInGui(mousePos, data.Popup) and not isPointInGui(mousePos, data.Preview) then
+                data.Close()
+            end
+        end
     end
-end)
+end))
 
 local ActiveNotifications = {}
 local ActiveByKey = {}
@@ -291,7 +316,7 @@ local function createNotification(text, opts)
         local existing = ActiveByKey[key]
         if existing.text == text then
             existing.remaining = duration
-            existing.startTime = tick()
+            existing.startTime = os.clock()
             return existing
         else
             removeNotification(existing)
@@ -345,7 +370,7 @@ local function createNotification(text, opts)
         Size = UDim2.new(1, -16, 1, 0),
         Position = UDim2.new(0, 8, 0, 0),
         BackgroundTransparency = 1,
-        Text = NOTIFY_PREFIX[ntype] .. " " .. text,
+        Text = NOTIFY_PREFIX[ntype] .. " " .. tostring(text),
         TextColor3 = NOTIFY_TEXT_COLORS[ntype],
         TextSize = 13,
         Font = Enum.Font.Code,
@@ -361,7 +386,7 @@ local function createNotification(text, opts)
         type = ntype,
         position = position,
         duration = duration,
-        startTime = tick(),
+        startTime = os.clock(),
         remaining = duration,
         key = key,
     }
@@ -375,10 +400,10 @@ local function createNotification(text, opts)
 end
 
 local function tickNotifications()
-    local now = tick()
+    local now = os.clock()
     for i = #ActiveNotifications, 1, -1 do
         local notif = ActiveNotifications[i]
-        if not notif.instance.Parent then
+        if not notif.instance or not notif.instance.Parent then
             table.remove(ActiveNotifications, i)
         elseif now - notif.startTime >= notif.remaining then
             removeNotification(notif)
@@ -386,7 +411,17 @@ local function tickNotifications()
     end
 end
 
-RunService.Heartbeat:Connect(tickNotifications)
+trackGlobal(RunService.Heartbeat:Connect(tickNotifications))
+
+GlobalEnv.__IrisX_Cleanup = function()
+    for _, conn in ipairs(GlobalConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(GlobalConnections)
+    for _, gui in ipairs({ RootGui, PopupGui, NotifyGui }) do
+        if gui and gui.Parent then gui:Destroy() end
+    end
+end
 
 function IrisX:Notify(text, opts)
     return createNotification(text, opts)
@@ -405,7 +440,7 @@ function IrisX:CreateWindow(opts)
     local TitleText = opts.Title or "Iris-X"
     local size = opts.Size or Vector2.new(320, 400)
     local position = opts.Position or Vector2.new(150, 150)
-    local theme = opts.Theme or "dark"
+    local theme = (opts.Theme and THEMES[opts.Theme]) and opts.Theme or "dark"
     local MIN_SIZE = Vector2.new(260, 160)
 
     local CFG = {}
@@ -430,6 +465,8 @@ function IrisX:CreateWindow(opts)
     local drawings = {}
     local rollbacks = {}
     local tabGroups = {}
+    local ownedPopups = {}
+    local statefulControls = {}
 
     local function reg(inst, props)
         table.insert(themeTargets, { inst = inst, props = props })
@@ -451,14 +488,19 @@ function IrisX:CreateWindow(opts)
 
     local function refreshTheme()
         for _, target in ipairs(themeTargets) do
-            local p = target.props
-            for i = 1, #p, 2 do
-                local value = CFG[p[i + 1]]
-                if value ~= nil then target.inst[p[i]] = value end
+            if target.inst and target.inst.Parent then
+                local p = target.props
+                for i = 1, #p, 2 do
+                    local value = CFG[p[i + 1]]
+                    if value ~= nil then target.inst[p[i]] = value end
+                end
             end
         end
         for _, group in ipairs(tabGroups) do
             if group.Refresh then group.Refresh() end
+        end
+        for _, fn in ipairs(statefulControls) do
+            fn()
         end
     end
 
@@ -490,44 +532,55 @@ function IrisX:CreateWindow(opts)
         if value ~= nil then inst[prop .. "Transparency"] = value end
     end
 
+    local function resolveKey(val)
+        return type(val) == "number" and val or CFG[val]
+    end
+
     local function bindInteraction(prop, button, highlightee, colorKeys)
         local exited = false
         track(button.MouseEnter:Connect(function()
-            setColor(highlightee, prop, CFG[colorKeys.HoveredColor])
-            setTrans(highlightee, prop, CFG[colorKeys.HoveredTransparency])
+            setColor(highlightee, prop, resolveKey(colorKeys.HoveredColor))
+            setTrans(highlightee, prop, resolveKey(colorKeys.HoveredTransparency))
             exited = false
         end))
         track(button.MouseLeave:Connect(function()
-            setColor(highlightee, prop, CFG[colorKeys.Color])
-            setTrans(highlightee, prop, CFG[colorKeys.Transparency])
+            setColor(highlightee, prop, resolveKey(colorKeys.Color))
+            setTrans(highlightee, prop, resolveKey(colorKeys.Transparency))
             exited = true
         end))
         track(button.InputBegan:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-            setColor(highlightee, prop, CFG[colorKeys.ActiveColor])
-            setTrans(highlightee, prop, CFG[colorKeys.ActiveTransparency])
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1
+               and input.UserInputType ~= Enum.UserInputType.Touch then return end
+            setColor(highlightee, prop, resolveKey(colorKeys.ActiveColor))
+            setTrans(highlightee, prop, resolveKey(colorKeys.ActiveTransparency))
         end))
         track(button.InputEnded:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 or exited then return end
-            setColor(highlightee, prop, CFG[colorKeys.HoveredColor])
-            setTrans(highlightee, prop, CFG[colorKeys.HoveredTransparency])
+            if (input.UserInputType ~= Enum.UserInputType.MouseButton1
+               and input.UserInputType ~= Enum.UserInputType.Touch) or exited then return end
+            setColor(highlightee, prop, resolveKey(colorKeys.HoveredColor))
+            setTrans(highlightee, prop, resolveKey(colorKeys.HoveredTransparency))
         end))
     end
 
-    local Window = new("ScreenGui", {
+    -- Container Frame inside RootGui (avoids nested ScreenGui coordinate bugs)
+    local Window = new("Frame", {
         Name = "IrisX_Window",
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        DisplayOrder = 127,
-        ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
-        IgnoreGuiInset = false,
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
     }, RootGui)
 
     local state = {
-        size = size, position = position,
-        dragging = false, dragDelta = Vector2.zero,
-        resizing = false, lastMouse = Vector2.zero,
+        size = size,
+        expandedSize = size,
+        position = position,
+        dragging = false,
+        dragDelta = Vector2.zero,
+        resizing = false,
+        lastMouse = Vector2.zero,
         hidden = false,
+        isOpen = true,
+        toggleKey = opts.Keybind or Enum.KeyCode.Insert,
     }
 
     local WindowButton = new("TextButton", {
@@ -542,14 +595,16 @@ function IrisX:CreateWindow(opts)
     reg(WindowStroke, { "Color", "BorderColor", "Transparency", "BorderTransparency" })
 
     local function clampPosition(pos)
-        local vp = workspace.CurrentCamera.ViewportSize
+        local cam = workspace.CurrentCamera
+        local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
         return Vector2.new(
             math.clamp(pos.X, 0, math.max(0, vp.X - state.size.X)),
             math.clamp(pos.Y, 0, math.max(0, vp.Y - state.size.Y))
         )
     end
     local function clampSize(s)
-        local vp = workspace.CurrentCamera.ViewportSize
+        local cam = workspace.CurrentCamera
+        local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
         return Vector2.new(
             math.clamp(s.X, MIN_SIZE.X, math.max(MIN_SIZE.X, vp.X - state.position.X)),
             math.clamp(s.Y, MIN_SIZE.Y, math.max(MIN_SIZE.Y, vp.Y - state.position.Y))
@@ -609,7 +664,7 @@ function IrisX:CreateWindow(opts)
         BackgroundTransparency = CFG.TitleBgActiveTransparency,
     }, Content)
     reg(TitleBar, { "BackgroundColor3", "TitleBgActiveColor", "BackgroundTransparency", "TitleBgActiveTransparency" })
-    UIPadding(TitleBar, Vector2.new(CFG.FramePadding.X))
+    UIPadding(TitleBar, Vector2.new(CFG.FramePadding.X, 0))
     local titleLayout = UIListLayout(TitleBar, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
     titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
@@ -745,8 +800,10 @@ function IrisX:CreateWindow(opts)
     }, WindowButton)
 
     local function startResize()
+        if not state.isOpen then return end
         state.resizing = true
         state.lastMouse = getMouse()
+        closeAllPopups()
     end
     for _, el in ipairs({ RightResizeGrip, RightBorder, BottomBorder }) do
         track(el.InputBegan:Connect(function(input)
@@ -760,6 +817,7 @@ function IrisX:CreateWindow(opts)
            or input.UserInputType == Enum.UserInputType.Touch then
             state.dragging = true
             state.dragDelta = getMouse() - state.position
+            closeAllPopups()
         end
     end))
 
@@ -775,6 +833,7 @@ function IrisX:CreateWindow(opts)
             local delta = mouse - state.lastMouse
             state.lastMouse = mouse
             state.size = clampSize(Vector2.new(state.size.X + delta.X, state.size.Y + delta.Y))
+            state.expandedSize = state.size
             applyWindow()
         end
     end))
@@ -800,7 +859,7 @@ function IrisX:CreateWindow(opts)
         local t = new("TextLabel", {
             AutomaticSize = Enum.AutomaticSize.XY,
             BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = str,
+            Text = tostring(str),
             TextWrapped = opts.Wrapped or false,
         }, parent or ChildContainer)
         applyTextStyle(t)
@@ -918,7 +977,13 @@ function IrisX:CreateWindow(opts)
             ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1,
             ScaleType = Enum.ScaleType.Fit,
         }, Box)
-        reg(Checkmark, { "ImageColor3", "CheckMarkColor", "ImageTransparency", "CheckMarkTransparency" })
+        -- Only register ImageColor3 so theme changes don't force unchecked boxes visible
+        reg(Checkmark, { "ImageColor3", "CheckMarkColor" })
+        table.insert(statefulControls, function()
+            if Checkmark.Parent then
+                Checkmark.ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1
+            end
+        end)
 
         track(Checkbox.MouseButton1Click:Connect(function()
             isChecked = not isChecked
@@ -937,7 +1002,7 @@ function IrisX:CreateWindow(opts)
             Instance = Checkbox,
             Get = function() return isChecked end,
             Set = function(v)
-                isChecked = v
+                isChecked = not not v
                 Checkmark.ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1
                 if callback then callback(isChecked) end
             end,
@@ -975,6 +1040,11 @@ function IrisX:CreateWindow(opts)
         }, Button)
         UICorner(Circle)
         reg(Circle, { "BackgroundColor3", "CheckMarkColor" })
+        table.insert(statefulControls, function()
+            if Circle.Parent then
+                Circle.BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1
+            end
+        end)
 
         bindInteraction("Background", Radio, Button, {
             Color = "FrameBgColor", Transparency = "FrameBgTransparency",
@@ -999,7 +1069,7 @@ function IrisX:CreateWindow(opts)
             Instance = Radio,
             Get = function() return isSelected end,
             Set = function(v)
-                isSelected = v
+                isSelected = not not v
                 Circle.BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1
             end,
         }
@@ -1008,7 +1078,7 @@ function IrisX:CreateWindow(opts)
     function Win:Slider(text, min, max, default, callback, parent)
         min = min or 0
         max = max or 100
-        default = default or min
+        default = math.clamp(default or min, min, max)
         local container = parent or ChildContainer
 
         local Slider = new("Frame", {
@@ -1098,6 +1168,7 @@ function IrisX:CreateWindow(opts)
         end
 
         track(SliderField:GetPropertyChangedSignal("AbsoluteSize"):Connect(reposition))
+        task.defer(reposition)
 
         track(SliderField.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -1127,14 +1198,7 @@ function IrisX:CreateWindow(opts)
             Get = function() return value end,
             Set = function(v)
                 value = math.clamp(v, min, max)
-                local ratio = (value - min) / (max - min)
-                local w = SliderField.AbsoluteSize.X
-                local grabW = GrabBar.AbsoluteSize.X
-                local paddedW = w - grabW
-                if paddedW > 0 then
-                    local paddedRatio = ((paddedW / w) * ratio) + ((1 - (paddedW / w)) / 2)
-                    GrabBar.Position = UDim2.fromScale(paddedRatio, 0.5)
-                end
+                reposition()
                 OverlayText.Text = string.format("%.2f", value)
                 if callback then callback(value) end
             end,
@@ -1223,7 +1287,11 @@ function IrisX:CreateWindow(opts)
         track(UserInputService.InputBegan:Connect(function(input, gpe)
             if not listening or gpe then return end
             if input.UserInputType == Enum.UserInputType.Keyboard then
-                currentKey = input.KeyCode
+                if input.KeyCode == Enum.KeyCode.Escape then
+                    currentKey = Enum.KeyCode.Unknown
+                else
+                    currentKey = input.KeyCode
+                end
                 b.Text = text .. ": " .. currentKey.Name
                 listening = false
                 if callback then callback(currentKey) end
@@ -1233,6 +1301,10 @@ function IrisX:CreateWindow(opts)
         return {
             Instance = b,
             Get = function() return currentKey end,
+            Set = function(k)
+                currentKey = k or Enum.KeyCode.Unknown
+                b.Text = text .. ": " .. currentKey.Name
+            end,
         }
     end
 
@@ -1321,7 +1393,9 @@ function IrisX:CreateWindow(opts)
             Visible = false,
             ZIndex = 500,
         }, PopupGui)
-        UIStroke(Popup, CFG.WindowBorderSize, CFG.BorderColor, CFG.BorderTransparency)
+        table.insert(ownedPopups, Popup)
+        local popupStroke = UIStroke(Popup, CFG.WindowBorderSize, CFG.BorderColor, CFG.BorderTransparency)
+        reg(popupStroke, { "Color", "BorderColor", "Transparency", "BorderTransparency" })
         UIPadding(Popup, Vector2.new(2, CFG.WindowPadding.Y))
         local popupLayout = UIListLayout(Popup, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
         popupLayout.VerticalAlignment = Enum.VerticalAlignment.Top
@@ -1357,20 +1431,21 @@ function IrisX:CreateWindow(opts)
         end
 
         local function openPopup()
-            closeAllPopups()
+            closeAllPopups(comboControl)
             isOpen = true
             Popup.Visible = true
-            OpenPopups[comboControl] = { Close = closePopup }
+            OpenPopups[comboControl] = { Close = closePopup, Popup = Popup, Preview = Preview }
 
-            local previewPos = Preview.AbsolutePosition - GuiService:GetGuiInset()
+            local previewPos = Preview.AbsolutePosition
             local previewSize = Preview.AbsoluteSize
             local contentH = popupLayout.AbsoluteContentSize.Y + 2 * CFG.WindowPadding.Y
-            local screenSize = workspace.CurrentCamera.ViewportSize
+            local cam = workspace.CurrentCamera
+            local screenSize = cam and cam.ViewportSize or Vector2.new(1920, 1080)
 
             local x = previewPos.X
             local y = previewPos.Y + previewSize.Y + 1
             if y + contentH > screenSize.Y then
-                y = previewPos.Y - contentH - 1
+                y = previewPos.Y - math.min(contentH, 200) - 1
             end
 
             Popup.Position = UDim2.fromOffset(x, y)
@@ -1516,12 +1591,9 @@ function IrisX:CreateWindow(opts)
         end
 
         function Group:SelectTab(entry)
+            closeAllPopups()
             for _, t in ipairs(tabs) do
-                if t == entry then
-                    t.Body.Visible = true
-                else
-                    t.Body.Visible = false
-                end
+                t.Body.Visible = (t == entry)
             end
             current = entry
             updateTabColors()
@@ -1532,7 +1604,7 @@ function IrisX:CreateWindow(opts)
         return Group
     end
 
-    function Win:Section(title, parent)
+    function Win:Section(title, parent, defaultOpen)
         local container = parent or ChildContainer
         local Section = new("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -1553,10 +1625,12 @@ function IrisX:CreateWindow(opts)
         hl.VerticalAlignment = Enum.VerticalAlignment.Center
         reg(Header, { "BackgroundColor3", "HeaderColor", "BackgroundTransparency", "HeaderTransparency" })
 
+        local isOpen = defaultOpen == true
+
         local Arrow = new("ImageLabel", {
             Size = UDim2.fromOffset(CFG.TextSize, math.ceil(CFG.TextSize * 0.8)),
             BackgroundTransparency = 1, BorderSizePixel = 0,
-            Image = ICON.RIGHT_POINTING_TRIANGLE,
+            Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE,
             ImageColor3 = CFG.TextColor,
             ImageTransparency = CFG.TextTransparency,
             ScaleType = Enum.ScaleType.Fit,
@@ -1574,12 +1648,11 @@ function IrisX:CreateWindow(opts)
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.fromScale(1, 0),
             BackgroundTransparency = 1, BorderSizePixel = 0,
-            Visible = false,
+            Visible = isOpen,
         }, Section)
         UIPadding(Body, Vector2.new(CFG.ItemInnerSpacing.X + 4, 0))
         UIListLayout(Body, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
 
-        local isOpen = false
         track(Header.MouseEnter:Connect(function()
             Header.BackgroundColor3 = CFG.HeaderHoveredColor
             Header.BackgroundTransparency = CFG.HeaderHoveredTransparency
@@ -1600,6 +1673,7 @@ function IrisX:CreateWindow(opts)
     function Win:SetTheme(name)
         if not THEMES[name] then return end
         theme = name
+        Win._theme = name
         for k, v in pairs(THEMES[name]) do CFG[k] = v end
         refreshTheme()
     end
@@ -1626,20 +1700,12 @@ function IrisX:CreateWindow(opts)
     end
 
     function Win:AddHideButton(bind, parent)
-        bind = bind or Enum.KeyCode.Insert
-        if bind ~= Enum.KeyCode.Insert then
-            track(UserInputService.InputBegan:Connect(function(input, gpe)
-                if gpe then return end
-                if input.KeyCode == bind then
-                    state.hidden = not state.hidden
-                    WindowButton.Visible = not state.hidden
-                end
-            end))
-        end
-        return Win:Button("Hide UI (" .. bind.Name .. ")", function()
+        if bind then state.toggleKey = bind end
+        return Win:Button("Hide UI (" .. state.toggleKey.Name .. ")", function()
             state.hidden = true
             WindowButton.Visible = false
-            IrisX:Notify("UI hidden. Press " .. bind.Name .. " to show.", {Type = "info", Duration = 2, Theme = theme})
+            closeAllPopups()
+            IrisX:Notify("UI hidden. Press " .. state.toggleKey.Name .. " to show.", { Type = "info", Duration = 2, Theme = theme })
         end, parent)
     end
 
@@ -1648,34 +1714,38 @@ function IrisX:CreateWindow(opts)
     end
 
     function Win:Destroy()
-        for _, group in ipairs(tabGroups) do
-            local idx = table.find(tabGroups, group)
-            if idx then table.remove(tabGroups, idx) end
+        closeAllPopups()
+
+        for _, popup in ipairs(ownedPopups) do
+            if popup and popup.Parent then popup:Destroy() end
         end
+        table.clear(ownedPopups)
+        table.clear(tabGroups)
+        table.clear(statefulControls)
 
         for _, conn in ipairs(connections) do
             pcall(function() conn:Disconnect() end)
         end
-        connections = {}
+        table.clear(connections)
 
         for _, d in ipairs(drawings) do
             pcall(function() d:Remove() end)
         end
-        drawings = {}
+        table.clear(drawings)
 
         for _, fn in ipairs(rollbacks) do
             pcall(fn)
         end
-        rollbacks = {}
+        table.clear(rollbacks)
 
         for _, target in ipairs(themeTargets) do
             if target.inst and target.inst.Parent then
                 target.inst:Destroy()
             end
         end
-        themeTargets = {}
+        table.clear(themeTargets)
 
-        if Window then Window:Destroy() end
+        if Window and Window.Parent then Window:Destroy() end
     end
 
     track(CloseButton.MouseButton1Click:Connect(function() Win:Destroy() end))
@@ -1683,17 +1753,20 @@ function IrisX:CreateWindow(opts)
     track(HideButton.MouseButton1Click:Connect(function()
         state.hidden = not state.hidden
         WindowButton.Visible = not state.hidden
-        IrisX:Notify(state.hidden and "UI hidden" or "UI shown", {Type = "info", Duration = 2, Theme = theme})
+        if state.hidden then closeAllPopups() end
+        IrisX:Notify(state.hidden and "UI hidden" or "UI shown", { Type = "info", Duration = 2, Theme = theme })
     end))
 
-    local isOpen = true
     track(CollapseButton.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        ChildContainer.Visible = isOpen
-        CollapseArrow.Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
-        if isOpen then
-            state.size = size
+        state.isOpen = not state.isOpen
+        ChildContainer.Visible = state.isOpen
+        RightResizeGrip.Visible = state.isOpen
+        CollapseArrow.Image = state.isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
+        closeAllPopups()
+        if state.isOpen then
+            state.size = Vector2.new(state.size.X, state.expandedSize.Y)
         else
+            state.expandedSize = state.size
             state.size = Vector2.new(state.size.X, TitleBar.AbsoluteSize.Y)
         end
         applyWindow()
@@ -1701,9 +1774,10 @@ function IrisX:CreateWindow(opts)
 
     track(UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
-        if input.KeyCode == Enum.KeyCode.Insert then
+        if input.KeyCode == state.toggleKey then
             state.hidden = not state.hidden
             WindowButton.Visible = not state.hidden
+            if state.hidden then closeAllPopups() end
         end
     end))
 
