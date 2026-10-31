@@ -580,6 +580,7 @@ function IrisX:CreateWindow(opts)
         lastMouse = Vector2.zero,
         hidden = false,
         isOpen = true,
+        keyCapture = false,
         toggleKey = opts.Keybind or Enum.KeyCode.Insert,
     }
 
@@ -645,8 +646,12 @@ function IrisX:CreateWindow(opts)
     }, Content)
     reg(ChildContainer, { "BackgroundColor3", "WindowBgColor", "BackgroundTransparency", "WindowBgTransparency" })
     reg(ChildContainer, { "ScrollBarImageColor3", "ScrollbarGrabColor", "ScrollBarImageTransparency", "ScrollbarGrabTransparency" })
+    -- fill remaining height below TitleBar instead of overlapping it
+    new("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill }, ChildContainer)
     UIPadding(ChildContainer, CFG.WindowPadding)
     UIListLayout(ChildContainer, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
+    -- previews move with content on scroll, so close popups instead of letting them detach
+    track(ChildContainer:GetPropertyChangedSignal("CanvasPosition"):Connect(closeAllPopups))
 
     new("Frame", {
         Size = UDim2.fromOffset(0, CFG.WindowPadding.Y + CFG.FramePadding.Y),
@@ -856,11 +861,13 @@ function IrisX:CreateWindow(opts)
 
     function Win:Text(str, parent, opts)
         opts = opts or {}
+        local wrapped = opts.Wrapped or false
         local t = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
+            Size = wrapped and UDim2.new(1, 0, 0, 0) or UDim2.fromOffset(0, 0),
+            AutomaticSize = wrapped and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
             BackgroundTransparency = 1, BorderSizePixel = 0,
             Text = tostring(str),
-            TextWrapped = opts.Wrapped or false,
+            TextWrapped = wrapped,
         }, parent or ChildContainer)
         applyTextStyle(t)
         if opts.Color then t.TextColor3 = opts.Color end
@@ -1001,15 +1008,38 @@ function IrisX:CreateWindow(opts)
         return {
             Instance = Checkbox,
             Get = function() return isChecked end,
-            Set = function(v)
+            Set = function(v, silent)
                 isChecked = not not v
                 Checkmark.ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1
-                if callback then callback(isChecked) end
+                if callback and not silent then callback(isChecked) end
             end,
         }
     end
 
-    function Win:Radio(text, default, callback, parent)
+    function Win:RadioGroup()
+        local group = { radios = {} }
+
+        function group:Add(text, default, callback, parent)
+            return Win:Radio(text, default, callback, parent, group)
+        end
+
+        function group:Get()
+            for _, r in ipairs(group.radios) do
+                if r.get() then return r.text end
+            end
+            return nil
+        end
+
+        function group:Set(value)
+            for _, r in ipairs(group.radios) do
+                r.public.Set(r.text == value)
+            end
+        end
+
+        return group
+    end
+
+    function Win:Radio(text, default, callback, parent, group)
         local isSelected = default or false
         local container = parent or ChildContainer
         local Radio = new("TextButton", {
@@ -1052,10 +1082,47 @@ function IrisX:CreateWindow(opts)
             ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
         })
 
+        local radio = {}
+        local record
+
+        local function apply(v)
+            isSelected = not not v
+            Circle.BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1
+        end
+
+        local function setSelected(silent)
+            if isSelected then return end
+            apply(true)
+            if group then
+                for _, other in ipairs(group.radios) do
+                    if other ~= record and other.get() then
+                        other.apply(false)
+                        if not silent and other.callback then other.callback(false) end
+                    end
+                end
+            end
+            if not silent and callback then callback(true) end
+        end
+
+        record = {
+            text = text,
+            callback = callback,
+            get = function() return isSelected end,
+            apply = apply,
+            public = radio,
+        }
+        if group then
+            table.insert(group.radios, record)
+            -- a later default=true clears earlier defaults without firing their callbacks
+            if isSelected then
+                for _, other in ipairs(group.radios) do
+                    if other ~= record and other.get() then other.apply(false) end
+                end
+            end
+        end
+
         track(Radio.MouseButton1Click:Connect(function()
-            isSelected = true
-            Circle.BackgroundTransparency = CFG.CheckMarkTransparency
-            if callback then callback(isSelected) end
+            setSelected(false)
         end))
 
         local TextLabel = new("TextLabel", {
@@ -1065,20 +1132,41 @@ function IrisX:CreateWindow(opts)
         }, Radio)
         applyTextStyle(TextLabel)
 
-        return {
-            Instance = Radio,
-            Get = function() return isSelected end,
-            Set = function(v)
-                isSelected = not not v
-                Circle.BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1
-            end,
-        }
+        radio.Instance = Radio
+        radio.Text = text
+        radio.Get = function() return isSelected end
+        radio.Set = function(v, silent)
+            if v then
+                setSelected(silent)
+            elseif isSelected then
+                apply(false)
+                if not silent and callback then callback(false) end
+            end
+        end
+
+        return radio
     end
 
-    function Win:Slider(text, min, max, default, callback, parent)
+    function Win:Slider(text, min, max, default, callback, parent, opts)
+        opts = opts or {}
         min = min or 0
         max = max or 100
-        default = math.clamp(default or min, min, max)
+        local step = opts.Step
+        local precision = opts.Precision
+        if not precision then
+            precision = (step and step >= 1 and step % 1 == 0) and 0 or 2
+        end
+        local function snap(v)
+            v = math.clamp(v, min, max)
+            if step and step > 0 then
+                v = min + math.floor((v - min) / step + 0.5) * step
+            end
+            return math.clamp(v, min, max)
+        end
+        local function formatValue(v)
+            return string.format("%." .. precision .. "f", v)
+        end
+        default = snap(math.clamp(default or min, min, max))
         local container = parent or ChildContainer
 
         local Slider = new("Frame", {
@@ -1104,7 +1192,7 @@ function IrisX:CreateWindow(opts)
             Size = UDim2.fromScale(1, 1),
             BackgroundTransparency = 1, BorderSizePixel = 0,
             ZIndex = 10, ClipsDescendants = true,
-            Text = string.format("%.2f", default),
+            Text = formatValue(default),
         }, SliderField)
         applyTextStyle(OverlayText)
         OverlayText.TextXAlignment = Enum.TextXAlignment.Center
@@ -1160,10 +1248,9 @@ function IrisX:CreateWindow(opts)
             if paddedW <= 0 then return end
             local offset = mouseX - (abs + grabW / 2)
             local ratio = math.clamp(offset / paddedW, 0, 1)
-            value = min + (max - min) * ratio
-            local paddedRatio = ((paddedW / w) * ratio) + ((1 - (paddedW / w)) / 2)
-            GrabBar.Position = UDim2.fromScale(paddedRatio, 0.5)
-            OverlayText.Text = string.format("%.2f", value)
+            value = snap(min + (max - min) * ratio)
+            reposition()
+            OverlayText.Text = formatValue(value)
             if callback then callback(value) end
         end
 
@@ -1196,11 +1283,11 @@ function IrisX:CreateWindow(opts)
         return {
             Instance = Slider,
             Get = function() return value end,
-            Set = function(v)
-                value = math.clamp(v, min, max)
+            Set = function(v, silent)
+                value = snap(v)
                 reposition()
-                OverlayText.Text = string.format("%.2f", value)
-                if callback then callback(value) end
+                OverlayText.Text = formatValue(value)
+                if callback and not silent then callback(value) end
             end,
         }
     end
@@ -1252,7 +1339,10 @@ function IrisX:CreateWindow(opts)
         return {
             Instance = Row,
             Get = function() return Field.Text end,
-            Set = function(v) Field.Text = tostring(v) end,
+            Set = function(v, silent)
+                Field.Text = tostring(v)
+                if callback and not silent then callback(Field.Text) end
+            end,
         }
     end
 
@@ -1279,8 +1369,16 @@ function IrisX:CreateWindow(opts)
             ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
         })
 
+        local function stopListening()
+            listening = false
+            task.defer(function()
+                if not listening then state.keyCapture = false end
+            end)
+        end
+
         track(b.MouseButton1Click:Connect(function()
             listening = true
+            state.keyCapture = true
             b.Text = text .. ": ..."
         end))
 
@@ -1293,17 +1391,21 @@ function IrisX:CreateWindow(opts)
                     currentKey = input.KeyCode
                 end
                 b.Text = text .. ": " .. currentKey.Name
-                listening = false
+                stopListening()
                 if callback then callback(currentKey) end
+            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+                stopListening()
+                b.Text = text .. ": " .. currentKey.Name
             end
         end))
 
         return {
             Instance = b,
             Get = function() return currentKey end,
-            Set = function(k)
+            Set = function(k, silent)
                 currentKey = k or Enum.KeyCode.Unknown
                 b.Text = text .. ": " .. currentKey.Name
+                if callback and not silent then callback(currentKey) end
             end,
         }
     end
@@ -1469,9 +1571,10 @@ function IrisX:CreateWindow(opts)
             Instance = Combo,
             Popup = Popup,
             Get = function() return selected end,
-            Set = function(v)
+            Set = function(v, silent)
                 selected = v
                 PreviewText.Text = tostring(selected)
+                if callback and not silent then callback(selected) end
             end,
             Close = closePopup,
         }
@@ -1773,7 +1876,7 @@ function IrisX:CreateWindow(opts)
     end))
 
     track(UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
+        if gpe or state.keyCapture then return end
         if input.KeyCode == state.toggleKey then
             state.hidden = not state.hidden
             WindowButton.Visible = not state.hidden
