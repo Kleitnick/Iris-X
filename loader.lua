@@ -859,16 +859,29 @@ function IrisX:CreateWindow(opts)
     Win._trackRollback = trackRollback
     Win._theme = theme
 
-    function Win:Text(str, parent, opts)
+    function Win:Text(str, a, b)
+        local parent, opts
+        if typeof(a) == "table" then
+            opts = a
+            parent = b
+        elseif typeof(a) == "Instance" then
+            parent = a
+            opts = b
+        else
+            if typeof(b) == "table" then opts = b end
+            if typeof(b) == "Instance" then parent = b end
+        end
+
         opts = opts or {}
         local wrapped = opts.Wrapped or false
+        local container = (typeof(parent) == "Instance" and parent) or ChildContainer
         local t = new("TextLabel", {
             Size = wrapped and UDim2.new(1, 0, 0, 0) or UDim2.fromOffset(0, 0),
             AutomaticSize = wrapped and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
             BackgroundTransparency = 1, BorderSizePixel = 0,
             Text = tostring(str),
             TextWrapped = wrapped,
-        }, parent or ChildContainer)
+        }, container)
         applyTextStyle(t)
         if opts.Color then t.TextColor3 = opts.Color end
         return t
@@ -1147,7 +1160,19 @@ function IrisX:CreateWindow(opts)
         return radio
     end
 
-    function Win:Slider(text, min, max, default, callback, parent, opts)
+    function Win:Slider(text, min, max, default, callback, a, b)
+        local parent, opts
+        if typeof(a) == "table" then
+            opts = a
+            parent = b
+        elseif typeof(a) == "Instance" then
+            parent = a
+            opts = b
+        else
+            if typeof(b) == "table" then opts = b end
+            if typeof(b) == "Instance" then parent = b end
+        end
+
         opts = opts or {}
         min = min or 0
         max = max or 100
@@ -1167,7 +1192,7 @@ function IrisX:CreateWindow(opts)
             return string.format("%." .. precision .. "f", v)
         end
         default = snap(math.clamp(default or min, min, max))
-        local container = parent or ChildContainer
+        local container = (typeof(parent) == "Instance" and parent) or ChildContainer
 
         local Slider = new("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -1707,8 +1732,20 @@ function IrisX:CreateWindow(opts)
         return Group
     end
 
-    function Win:Section(title, parent, defaultOpen)
-        local container = parent or ChildContainer
+    function Win:Section(title, a, b)
+        local defaultOpen, parent
+        if typeof(a) == "boolean" then
+            defaultOpen = a
+            parent = b
+        elseif typeof(a) == "Instance" then
+            parent = a
+            defaultOpen = b
+        else
+            if typeof(b) == "Instance" then parent = b end
+            if typeof(b) == "boolean" then defaultOpen = b end
+        end
+
+        local container = (typeof(parent) == "Instance" and parent) or ChildContainer
         local Section = new("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
