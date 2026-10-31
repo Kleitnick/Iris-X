@@ -11,7 +11,7 @@ ImGui-style UI library for Roblox executors.
 ## Load
 
 ```lua
-local IrisX = loadstring(game:HttpGet("https://raw.githubusercontent.com/Kleitick/Iris-X/refs/heads/main/loader.lua"))()
+local IrisX = loadstring(game:HttpGet("https://raw.githubusercontent.com/Kleitnick/Iris-X/refs/heads/main/loader.lua"))()
 ```
 
 Loading the script again tears down the previous instance before building a new one.
