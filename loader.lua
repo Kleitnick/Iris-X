@@ -2053,9 +2053,11 @@ function IrisX.ShowDemoWindow()
 	ds.combo = ds.combo or State("Alpha")
 	ds.radio = ds.radio or State("A")
 	ds.key = ds.key or State(Enum.KeyCode.Unknown)
+
 	if IrisX.BeginWindow("Iris-X Demo", { Size = Vector2.new(380, 470), Position = Vector2.new(220, 140) }) then
 		IrisX.Text("Every frame is rebuilt from scratch.")
 		IrisX.TextWrapped("Toggle key: " .. Runtime.toggleKey.Name)
+
 		IrisX.SeparatorText("Widgets")
 		IrisX.BeginGroup()
 		if IrisX.Button("Notify") then
@@ -2069,17 +2071,26 @@ function IrisX.ShowDemoWindow()
 			return
 		end
 		IrisX.EndGroup()
+
 		local checked = IrisX.Checkbox("Extra section", ds.check)
+		ds.check:Set(checked)
 		IrisX.TextWrapped("Checkbox: " .. (checked and "on" or "off"))
+
 		if checked then
 			local s = IrisX.Slider("Slider", 0, 100, ds.slider, { Step = 1 })
-			IrisX.ProgressBar(s / 100, { Text = math.floor(s + 0.5) .. "/100" })
+			ds.slider:Set(s)
+			IrisX.Text("Value: " .. math.floor(s + 0.5) .. "/100")
+
 			local text, submitted = IrisX.InputText("Input", ds.text, { Placeholder = "type, press enter" })
+			ds.text:Set(text)
 			if submitted and text ~= "" then
 				IrisX.Notify("Submitted: " .. text, { Type = "info" })
 			end
+
 			local picked = IrisX.Combo("Combo", { "Alpha", "Beta", "Gamma" }, ds.combo)
+			ds.combo:Set(picked)
 			IrisX.Text("Combo: " .. tostring(picked))
+
 			IrisX.BeginGroup()
 			if IrisX.RadioButton("A", ds.radio:Get() == "A") then
 				ds.radio:Set("A")
@@ -2089,17 +2100,21 @@ function IrisX.ShowDemoWindow()
 			end
 			IrisX.EndGroup()
 			IrisX.Text("Radio: " .. ds.radio:Get())
+
 			local k = IrisX.Keybind("Keybind", ds.key)
+			ds.key:Set(k)
 			IrisX.Text("Key: " .. k.Name)
 		end
+
 		IrisX.SeparatorText("Tabs")
 		if IrisX.BeginTabBar("demo") then
 			if IrisX.BeginTabItem("Tree") then
-				local open = IrisX.CollapsingHeader("Header")
-				if open then
+				local headOpen = IrisX.CollapsingHeader("Header")
+				if headOpen then
 					IrisX.Text("Under collapsing header.")
 				end
 				IrisX.TreePop()
+
 				local nodeOpen = IrisX.TreeNode("Node")
 				if nodeOpen then
 					IrisX.Text("Nested inside tree node.")
@@ -2108,13 +2123,40 @@ function IrisX.ShowDemoWindow()
 					end
 				end
 				IrisX.TreePop()
-			IrisX.EndTabItem()
+				IrisX.EndTabItem()
+			end
+
 			if IrisX.BeginTabItem("About") then
 				IrisX.TextWrapped(IrisX.Version .. ": immediate mode, ID stack, widget pool, persistent states.")
-			IrisX.EndTabItem()
-		IrisX.EndTabBar()
+				IrisX.EndTabItem()
+			end
+
+			IrisX.EndTabBar()
+		end
 	end
 	IrisX.End()
+end
+
+IrisX.Version = IrisX.Version or "4.0.0"
+
+local expected = {
+	"Init", "Connect", "Shutdown", "IsRunning", "SetTheme", "GetTheme",
+	"Notify", "SetNotifyPosition", "GetNotifyPosition", "PushID", "PopID",
+	"SetWindowOpen", "BeginWindow", "End", "Text", "TextWrapped", "Separator",
+	"SeparatorText", "Button", "Checkbox", "RadioButton", "Slider", "InputText",
+	"Combo", "Keybind", "BeginGroup", "EndGroup", "BeginTabBar", "EndTabBar",
+	"BeginTabItem", "EndTabItem", "TreeNode", "CollapsingHeader", "TreePop", "State",
+}
+for _, name in ipairs(expected) do
+	if IrisX[name] == nil then
+		warn("[IrisX] not defined, file is truncated above: " .. name)
+	end
+end
+
+if getgenv then
+	getgenv().IrisX = IrisX
+else
+	_G.IrisX = IrisX
 end
 
 return IrisX
