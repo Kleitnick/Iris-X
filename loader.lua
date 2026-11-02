@@ -1,1927 +1,2120 @@
--- Iris-X (Hardened Build)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
-local LP = Players.LocalPlayer
-local PG = LP:WaitForChild("PlayerGui")
 
--- Teardown previous global runtime connections on re-execution
-local GlobalEnv = (getgenv and getgenv()) or _G
-if GlobalEnv.__IrisX_Cleanup then
-    pcall(GlobalEnv.__IrisX_Cleanup)
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local G = (typeof(getgenv) == "function" and getgenv()) or _G
+if typeof(G.__IRISX_RUNTIME) == "table" and typeof(G.__IRISX_RUNTIME.Shutdown) == "function" then
+	pcall(G.__IRISX_RUNTIME.Shutdown)
 end
 
-local GlobalConnections = {}
-local function trackGlobal(conn)
-    table.insert(GlobalConnections, conn)
-    return conn
-end
-
-local ICON = {
-    BLANK_SQUARE            = "rbxassetid://83265623867126",
-    RIGHT_POINTING_TRIANGLE = "rbxassetid://105541346271951",
-    DOWN_POINTING_TRIANGLE  = "rbxassetid://95465797476827",
-    MULTIPLICATION_SIGN     = "rbxassetid://133890060015237",
-    BOTTOM_RIGHT_CORNER     = "rbxassetid://125737344915000",
-    CHECKMARK               = "rbxassetid://109638815494221",
+local Icons = {
+	Scroll = "rbxassetid://83265623867126",
+	Down = "rbxassetid://95465797476827",
+	Right = "rbxassetid://105541346271951",
+	Close = "rbxassetid://133890060015237",
+	Check = "rbxassetid://109638815494221",
+	Grip = "rbxassetid://125737344915000",
 }
 
 local THEMES = {
-    dark = {
-        TextColor = Color3.fromRGB(255, 255, 255),
-        TextTransparency = 0,
-        TextDisabledColor = Color3.fromRGB(128, 128, 128),
-        BorderColor = Color3.fromRGB(110, 110, 125),
-        BorderTransparency = 0.5,
-        WindowBgColor = Color3.fromRGB(15, 15, 15),
-        WindowBgTransparency = 0.06,
-        PopupBgColor = Color3.fromRGB(20, 20, 20),
-        PopupBgTransparency = 0.06,
-        ScrollbarGrabColor = Color3.fromRGB(79, 79, 79),
-        ScrollbarGrabTransparency = 0,
-        TitleBgActiveColor = Color3.fromRGB(41, 74, 122),
-        TitleBgActiveTransparency = 0,
-        FrameBgColor = Color3.fromRGB(41, 74, 122),
-        FrameBgTransparency = 0.46,
-        FrameBgHoveredColor = Color3.fromRGB(66, 150, 250),
-        FrameBgHoveredTransparency = 0.46,
-        FrameBgActiveColor = Color3.fromRGB(66, 150, 250),
-        FrameBgActiveTransparency = 0.33,
-        ButtonColor = Color3.fromRGB(66, 150, 250),
-        ButtonTransparency = 0.6,
-        ButtonHoveredColor = Color3.fromRGB(66, 150, 250),
-        ButtonHoveredTransparency = 0,
-        ButtonActiveColor = Color3.fromRGB(15, 135, 250),
-        ButtonActiveTransparency = 0,
-        SliderGrabColor = Color3.fromRGB(66, 150, 250),
-        SliderGrabTransparency = 0,
-        SliderGrabActiveColor = Color3.fromRGB(66, 150, 250),
-        SliderGrabActiveTransparency = 0,
-        HeaderColor = Color3.fromRGB(66, 150, 250),
-        HeaderTransparency = 0.69,
-        HeaderHoveredColor = Color3.fromRGB(66, 150, 250),
-        HeaderHoveredTransparency = 0.2,
-        HeaderActiveColor = Color3.fromRGB(66, 150, 250),
-        HeaderActiveTransparency = 0,
-        TabColor = Color3.fromRGB(46, 89, 148),
-        TabTransparency = 0.14,
-        TabHoveredColor = Color3.fromRGB(66, 150, 250),
-        TabHoveredTransparency = 0.2,
-        TabActiveColor = Color3.fromRGB(51, 105, 173),
-        TabActiveTransparency = 0,
-        SeparatorColor = Color3.fromRGB(110, 110, 128),
-        SeparatorTransparency = 0.5,
-        CheckMarkColor = Color3.fromRGB(66, 150, 250),
-        CheckMarkTransparency = 0,
-        ResizeGripColor = Color3.fromRGB(66, 150, 250),
-        ResizeGripTransparency = 0.8,
-        ResizeGripHoveredColor = Color3.fromRGB(66, 150, 250),
-        ResizeGripHoveredTransparency = 0.33,
-        ResizeGripActiveColor = Color3.fromRGB(66, 150, 250),
-        ResizeGripActiveTransparency = 0.05,
-    },
-    light = {
-        TextColor = Color3.fromRGB(0, 0, 0),
-        TextTransparency = 0,
-        TextDisabledColor = Color3.fromRGB(153, 153, 153),
-        BorderColor = Color3.fromRGB(64, 64, 64),
-        BorderTransparency = 0.5,
-        WindowBgColor = Color3.fromRGB(240, 240, 240),
-        WindowBgTransparency = 0,
-        PopupBgColor = Color3.fromRGB(255, 255, 255),
-        PopupBgTransparency = 0.02,
-        ScrollbarGrabColor = Color3.fromRGB(176, 176, 176),
-        ScrollbarGrabTransparency = 0.2,
-        TitleBgActiveColor = Color3.fromRGB(209, 209, 209),
-        TitleBgActiveTransparency = 0,
-        FrameBgColor = Color3.fromRGB(255, 255, 255),
-        FrameBgTransparency = 0.6,
-        FrameBgHoveredColor = Color3.fromRGB(66, 150, 250),
-        FrameBgHoveredTransparency = 0.6,
-        FrameBgActiveColor = Color3.fromRGB(66, 150, 250),
-        FrameBgActiveTransparency = 0.33,
-        ButtonColor = Color3.fromRGB(66, 150, 250),
-        ButtonTransparency = 0.6,
-        ButtonHoveredColor = Color3.fromRGB(66, 150, 250),
-        ButtonHoveredTransparency = 0,
-        ButtonActiveColor = Color3.fromRGB(15, 135, 250),
-        ButtonActiveTransparency = 0,
-        SliderGrabColor = Color3.fromRGB(41, 74, 122),
-        SliderGrabTransparency = 0,
-        SliderGrabActiveColor = Color3.fromRGB(15, 135, 250),
-        SliderGrabActiveTransparency = 0,
-        HeaderColor = Color3.fromRGB(66, 150, 250),
-        HeaderTransparency = 0.31,
-        HeaderHoveredColor = Color3.fromRGB(66, 150, 250),
-        HeaderHoveredTransparency = 0.2,
-        HeaderActiveColor = Color3.fromRGB(66, 150, 250),
-        HeaderActiveTransparency = 0,
-        TabColor = Color3.fromRGB(195, 203, 213),
-        TabTransparency = 0.07,
-        TabHoveredColor = Color3.fromRGB(66, 150, 250),
-        TabHoveredTransparency = 0.2,
-        TabActiveColor = Color3.fromRGB(152, 186, 255),
-        TabActiveTransparency = 0,
-        SeparatorColor = Color3.fromRGB(99, 99, 99),
-        SeparatorTransparency = 0.38,
-        CheckMarkColor = Color3.fromRGB(66, 150, 250),
-        CheckMarkTransparency = 0,
-        ResizeGripColor = Color3.fromRGB(89, 89, 89),
-        ResizeGripTransparency = 0.83,
-        ResizeGripHoveredColor = Color3.fromRGB(66, 150, 250),
-        ResizeGripHoveredTransparency = 0.33,
-        ResizeGripActiveColor = Color3.fromRGB(66, 150, 250),
-        ResizeGripActiveTransparency = 0.05,
-    },
+	dark = {
+		TextColor = Color3.fromRGB(255, 255, 255),
+		TextTransparency = 0,
+		TextDisabledColor = Color3.fromRGB(128, 128, 128),
+		BorderColor = Color3.fromRGB(110, 110, 125),
+		BorderTransparency = 0.5,
+		WindowBgColor = Color3.fromRGB(15, 15, 15),
+		WindowBgTransparency = 0.06,
+		PopupBgColor = Color3.fromRGB(20, 20, 20),
+		PopupBgTransparency = 0.06,
+		ScrollbarGrabColor = Color3.fromRGB(79, 79, 79),
+		ScrollbarGrabTransparency = 0,
+		TitleBgActiveColor = Color3.fromRGB(41, 74, 122),
+		TitleBgActiveTransparency = 0,
+		FrameBgColor = Color3.fromRGB(41, 74, 122),
+		FrameBgTransparency = 0.46,
+		FrameBgHoveredColor = Color3.fromRGB(66, 150, 250),
+		FrameBgHoveredTransparency = 0.46,
+		FrameBgActiveColor = Color3.fromRGB(66, 150, 250),
+		FrameBgActiveTransparency = 0.33,
+		ButtonColor = Color3.fromRGB(66, 150, 250),
+		ButtonTransparency = 0.6,
+		ButtonHoveredColor = Color3.fromRGB(66, 150, 250),
+		ButtonHoveredTransparency = 0,
+		ButtonActiveColor = Color3.fromRGB(15, 135, 250),
+		ButtonActiveTransparency = 0,
+		SliderGrabColor = Color3.fromRGB(66, 150, 250),
+		SliderGrabTransparency = 0,
+		SliderGrabActiveColor = Color3.fromRGB(15, 135, 250),
+		SliderGrabActiveTransparency = 0,
+		HeaderColor = Color3.fromRGB(66, 150, 250),
+		HeaderTransparency = 0.69,
+		HeaderHoveredColor = Color3.fromRGB(66, 150, 250),
+		HeaderHoveredTransparency = 0.2,
+		HeaderActiveColor = Color3.fromRGB(66, 150, 250),
+		HeaderActiveTransparency = 0,
+		TabColor = Color3.fromRGB(46, 89, 148),
+		TabTransparency = 0.14,
+		TabHoveredColor = Color3.fromRGB(66, 150, 250),
+		TabHoveredTransparency = 0.2,
+		TabActiveColor = Color3.fromRGB(51, 105, 173),
+		TabActiveTransparency = 0,
+		SeparatorColor = Color3.fromRGB(110, 110, 128),
+		SeparatorTransparency = 0.5,
+		CheckMarkColor = Color3.fromRGB(66, 150, 250),
+		CheckMarkTransparency = 0,
+		ResizeGripColor = Color3.fromRGB(66, 150, 250),
+		ResizeGripTransparency = 0.8,
+		ResizeGripHoveredColor = Color3.fromRGB(66, 150, 250),
+		ResizeGripHoveredTransparency = 0.33,
+		ResizeGripActiveColor = Color3.fromRGB(66, 150, 250),
+		ResizeGripActiveTransparency = 0.05,
+	},
+	light = {
+		TextColor = Color3.fromRGB(0, 0, 0),
+		TextTransparency = 0,
+		TextDisabledColor = Color3.fromRGB(153, 153, 153),
+		BorderColor = Color3.fromRGB(64, 64, 64),
+		BorderTransparency = 0.5,
+		WindowBgColor = Color3.fromRGB(240, 240, 240),
+		WindowBgTransparency = 0,
+		PopupBgColor = Color3.fromRGB(255, 255, 255),
+		PopupBgTransparency = 0.02,
+		ScrollbarGrabColor = Color3.fromRGB(176, 176, 176),
+		ScrollbarGrabTransparency = 0.2,
+		TitleBgActiveColor = Color3.fromRGB(209, 209, 209),
+		TitleBgActiveTransparency = 0,
+		FrameBgColor = Color3.fromRGB(255, 255, 255),
+		FrameBgTransparency = 0.6,
+		FrameBgHoveredColor = Color3.fromRGB(66, 150, 250),
+		FrameBgHoveredTransparency = 0.6,
+		FrameBgActiveColor = Color3.fromRGB(66, 150, 250),
+		FrameBgActiveTransparency = 0.33,
+		ButtonColor = Color3.fromRGB(66, 150, 250),
+		ButtonTransparency = 0.6,
+		ButtonHoveredColor = Color3.fromRGB(66, 150, 250),
+		ButtonHoveredTransparency = 0,
+		ButtonActiveColor = Color3.fromRGB(15, 135, 250),
+		ButtonActiveTransparency = 0,
+		SliderGrabColor = Color3.fromRGB(41, 74, 122),
+		SliderGrabTransparency = 0,
+		SliderGrabActiveColor = Color3.fromRGB(15, 135, 250),
+		SliderGrabActiveTransparency = 0,
+		HeaderColor = Color3.fromRGB(66, 150, 250),
+		HeaderTransparency = 0.31,
+		HeaderHoveredColor = Color3.fromRGB(66, 150, 250),
+		HeaderHoveredTransparency = 0.2,
+		HeaderActiveColor = Color3.fromRGB(66, 150, 250),
+		HeaderActiveTransparency = 0,
+		TabColor = Color3.fromRGB(195, 203, 213),
+		TabTransparency = 0.07,
+		TabHoveredColor = Color3.fromRGB(66, 150, 250),
+		TabHoveredTransparency = 0.2,
+		TabActiveColor = Color3.fromRGB(152, 186, 255),
+		TabActiveTransparency = 0,
+		SeparatorColor = Color3.fromRGB(99, 99, 99),
+		SeparatorTransparency = 0.38,
+		CheckMarkColor = Color3.fromRGB(66, 150, 250),
+		CheckMarkTransparency = 0,
+		ResizeGripColor = Color3.fromRGB(89, 89, 89),
+		ResizeGripTransparency = 0.83,
+		ResizeGripHoveredColor = Color3.fromRGB(66, 150, 250),
+		ResizeGripHoveredTransparency = 0.33,
+		ResizeGripActiveColor = Color3.fromRGB(66, 150, 250),
+		ResizeGripActiveTransparency = 0.05,
+	},
 }
 
-local NOTIFY_TEXT_COLORS = {
-    info    = Color3.fromRGB(230, 230, 230),
-    success = Color3.fromRGB(150, 230, 170),
-    warning = Color3.fromRGB(240, 200, 120),
-    error   = Color3.fromRGB(240, 130, 130),
-}
-
-local NOTIFY_PREFIX = {
-    info    = "[info]",
-    success = "[ok]",
-    warning = "[warn]",
-    error   = "[error]",
-}
-
-local NOTIFY_POSITIONS = {
-    TopLeft      = { anchor = Vector2.new(0, 0),   dir = Vector2.new(0, 1),  offset = UDim2.new(0, 10, 0, 10) },
-    TopRight     = { anchor = Vector2.new(1, 0),   dir = Vector2.new(0, 1),  offset = UDim2.new(1, -10, 0, 10) },
-    TopCenter    = { anchor = Vector2.new(0.5, 0), dir = Vector2.new(0, 1),  offset = UDim2.new(0.5, 0, 0, 10) },
-    BottomLeft   = { anchor = Vector2.new(0, 1),   dir = Vector2.new(0, -1), offset = UDim2.new(0, 10, 1, -10) },
-    BottomRight  = { anchor = Vector2.new(1, 1),   dir = Vector2.new(0, -1), offset = UDim2.new(1, -10, 1, -10) },
-    BottomCenter = { anchor = Vector2.new(0.5, 1), dir = Vector2.new(0, -1), offset = UDim2.new(0.5, 0, 1, -10) },
-}
+local Style = {}
+local ThemeName = "dark"
+local IrisX = {}
+IrisX.Version = "4.0.0"
+IrisX.Icons = Icons
+IrisX.Style = Style
 
 local function new(class, props, parent)
-    local o = Instance.new(class)
-    for k, v in pairs(props or {}) do o[k] = v end
-    if parent then o.Parent = parent end
-    return o
+	local inst = Instance.new(class)
+	if props then
+		for k, v in pairs(props) do
+			inst[k] = v
+		end
+	end
+	if parent then
+		inst.Parent = parent
+	end
+	return inst
 end
 
 local function UIStroke(parent, thickness, color, transparency)
-    return new("UIStroke", {
-        Thickness = thickness, Color = color, Transparency = transparency,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        LineJoinMode = Enum.LineJoinMode.Round,
-    }, parent)
+	return new("UIStroke", {
+		Thickness = thickness,
+		Color = color,
+		Transparency = transparency,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		LineJoinMode = Enum.LineJoinMode.Round,
+	}, parent)
 end
 
-local function UIPadding(parent, px)
-    return new("UIPadding", {
-        PaddingLeft   = UDim.new(0, px.X),
-        PaddingRight  = UDim.new(0, px.X),
-        PaddingTop    = UDim.new(0, px.Y),
-        PaddingBottom = UDim.new(0, px.Y),
-    }, parent)
+local function UIPadding(parent, pad)
+	return new("UIPadding", {
+		PaddingLeft = UDim.new(0, pad.X),
+		PaddingRight = UDim.new(0, pad.X),
+		PaddingTop = UDim.new(0, pad.Y),
+		PaddingBottom = UDim.new(0, pad.Y),
+	}, parent)
 end
 
-local function UIListLayout(parent, fill, padding)
-    return new("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        FillDirection = fill,
-        Padding = padding,
-    }, parent)
+local function UIListLayout(parent, fill, pad)
+	return new("UIListLayout", {
+		FillDirection = fill,
+		Padding = pad,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, parent)
 end
 
-local function UICorner(parent, px)
-    return new("UICorner", { CornerRadius = UDim.new(px and 0 or 1, px or 0) }, parent)
+local function UICorner(parent, scale)
+	return new("UICorner", { CornerRadius = UDim.new(scale or 0, 0) }, parent)
 end
 
-local IrisX = {}
-IrisX.ICON = ICON
-IrisX.THEMES = THEMES
-IrisX.NOTIFY_TEXT_COLORS = NOTIFY_TEXT_COLORS
-IrisX.NOTIFY_PREFIX = NOTIFY_PREFIX
-IrisX.NOTIFY_POSITIONS = NOTIFY_POSITIONS
+local StateClass = {}
+StateClass.__index = StateClass
+local AllStates = {}
 
-for _, gui in ipairs(PG:GetChildren()) do
-    if gui:IsA("ScreenGui") and (gui.Name == "IrisX" or gui.Name == "IrisX_Popups" or gui.Name == "IrisX_Notify") then
-        gui:Destroy()
-    end
+local function State(initial)
+	local s = setmetatable({ _value = initial, _subs = {}, _changed = false }, StateClass)
+	AllStates[#AllStates + 1] = s
+	return s
 end
 
-local RootGui = new("ScreenGui", {
-    Name = "IrisX",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    DisplayOrder = 127,
-    ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
-    IgnoreGuiInset = false,
-}, PG)
+function StateClass:Get()
+	return self._value
+end
 
-local PopupGui = new("ScreenGui", {
-    Name = "IrisX_Popups",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    DisplayOrder = 999,
-    IgnoreGuiInset = false,
-}, PG)
+function StateClass:Set(v)
+	if v ~= self._value then
+		self._value = v
+		self._changed = true
+		for _, fn in ipairs(self._subs) do
+			task.spawn(fn, v)
+		end
+	end
+end
 
-local NotifyGui = new("ScreenGui", {
-    Name = "IrisX_Notify",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    DisplayOrder = 9999,
-    IgnoreGuiInset = false,
-}, PG)
+function StateClass:IsChanged()
+	return self._changed
+end
+
+function StateClass:Connect(fn)
+	table.insert(self._subs, fn)
+end
+
+IrisX.State = State
+
+local function isState(v)
+	return type(v) == "table" and getmetatable(v) == StateClass
+end
+
+local function readVal(v, fallback)
+	if isState(v) then
+		return v:Get()
+	end
+	if v == nil then
+		return fallback
+	end
+	return v
+end
+
+local function writeVal(target, v)
+	if isState(target) then
+		target:Set(v)
+	end
+	return v
+end
+
+local Runtime = {
+	running = false,
+	frame = 0,
+	callback = nil,
+	conn = nil,
+	connections = {},
+	keyCapture = false,
+	toggleKey = Enum.KeyCode.Insert,
+	lastError = nil,
+}
+
+local Records = {}
+local WidgetStates = {}
+local maxZ = 100
+local RootGui, PopupGui, NotifyGui = nil, nil, nil
+
+local function widgetState(id, init)
+	local s = WidgetStates[id]
+	if not s then
+		s = init
+		WidgetStates[id] = s
+	end
+	return s
+end
 
 local function getMouse()
-    return UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
+	return UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
 end
 
-local function isPointInGui(pt, guiObj)
-    if not guiObj or not guiObj.Visible then return false end
-    local pos = guiObj.AbsolutePosition
-    local sz = guiObj.AbsoluteSize
-    return pt.X >= pos.X and pt.X <= (pos.X + sz.X) and pt.Y >= pos.Y and pt.Y <= (pos.Y + sz.Y)
+local function getViewport()
+	local cam = workspace.CurrentCamera
+	return cam and cam.ViewportSize or Vector2.new(1920, 1080)
+end
+
+local function inBounds(pt, inst)
+	if not inst or not inst.Visible then
+		return false
+	end
+	local p = inst.AbsolutePosition
+	local s = inst.AbsoluteSize
+	return pt.X >= p.X and pt.X <= p.X + s.X and pt.Y >= p.Y and pt.Y <= p.Y + s.Y
+end
+
+local function connect(r, signal, fn)
+	local c = signal:Connect(fn)
+	r.connections[#r.connections + 1] = c
+	return c
+end
+
+local function destroyRecord(r)
+	if r.closeFn then
+		pcall(r.closeFn)
+	end
+	for _, c in ipairs(r.connections) do
+		pcall(function()
+			c:Disconnect()
+		end)
+	end
+	if r.inst then
+		pcall(function()
+			r.inst:Destroy()
+		end)
+	end
+end
+
+local function getRecord(id, build)
+	local r = Records[id]
+	if not r then
+		r = { id = id, frame = 0, connections = {}, colors = {}, texts = {} }
+		r.inst = build(r)
+		Records[id] = r
+	end
+	r.frame = Runtime.frame
+	if not r.inst.Visible then
+		r.inst.Visible = true
+	end
+	return r
+end
+
+local function bindColor(r, inst, prop, key, tprop, tkey)
+	r.colors[#r.colors + 1] = { inst = inst, prop = prop, key = key, tprop = tprop, tkey = tkey }
+	local v = Style[key]
+	if v ~= nil then
+		inst[prop] = v
+	end
+	if tprop then
+		local t = Style[tkey]
+		if t ~= nil then
+			inst[tprop] = t
+		end
+	end
+end
+
+local function applyStyle(r)
+	for _, b in ipairs(r.colors) do
+		local v = Style[b.key]
+		if v ~= nil then
+			b.inst[b.prop] = v
+		end
+		if b.tprop then
+			local t = Style[b.tkey]
+			if t ~= nil then
+				b.inst[b.tprop] = t
+			end
+		end
+	end
+	for _, t in ipairs(r.texts) do
+		t.FontFace = Style.Font
+		t.TextSize = Style.TextSize
+		t.TextColor3 = Style.TextColor
+		t.TextTransparency = Style.TextTransparency
+	end
+end
+
+local function textStyle(r, inst)
+	r.texts[#r.texts + 1] = inst
+	inst.FontFace = Style.Font
+	inst.TextSize = Style.TextSize
+	inst.TextColor3 = Style.TextColor
+	inst.TextTransparency = Style.TextTransparency
+	inst.TextXAlignment = Enum.TextXAlignment.Left
+	inst.TextYAlignment = Enum.TextYAlignment.Center
+	inst.AutoLocalize = false
+end
+
+local function colorSpec(prefix)
+	return {
+		Base = { "BackgroundColor3", prefix .. "Color", "BackgroundTransparency", prefix .. "Transparency" },
+		Hovered = { "BackgroundColor3", prefix .. "HoveredColor", "BackgroundTransparency", prefix .. "HoveredTransparency" },
+		Active = { "BackgroundColor3", prefix .. "ActiveColor", "BackgroundTransparency", prefix .. "ActiveTransparency" },
+	}
+end
+
+local function imageSpec(prefix)
+	return {
+		Base = { "ImageColor3", prefix .. "Color", "ImageTransparency", prefix .. "Transparency" },
+		Hovered = { "ImageColor3", prefix .. "HoveredColor", "ImageTransparency", prefix .. "HoveredTransparency" },
+		Active = { "ImageColor3", prefix .. "ActiveColor", "ImageTransparency", prefix .. "ActiveTransparency" },
+	}
+end
+
+local function bindInteraction(r, button, target, spec)
+	local left = false
+	local function apply(list)
+		for i = 1, #list, 2 do
+			local key = list[i + 1]
+			local v = (type(key) == "number") and key or Style[key]
+			if v ~= nil then
+				target[list[i]] = v
+			end
+		end
+	end
+	connect(r, button.MouseEnter, function()
+		left = false
+		r.hovered = true
+		apply(spec.Hovered)
+	end)
+	connect(r, button.MouseLeave, function()
+		left = true
+		r.hovered = false
+		apply(spec.Base)
+	end)
+	connect(r, button.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			r.pressed = true
+			apply(spec.Active)
+		end
+	end)
+	connect(r, button.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			r.pressed = false
+			if not left then
+				apply(spec.Hovered)
+			end
+		end
+	end)
+end
+
+local IDStack = { "" }
+local FrameCounters = {}
+
+local function PushID(id)
+	IDStack[#IDStack + 1] = IDStack[#IDStack] .. "/" .. tostring(id)
+end
+
+local function PopID()
+	if #IDStack > 1 then
+		table.remove(IDStack)
+	end
+end
+
+local function widgetID(label)
+	local key = IDStack[#IDStack] .. "#" .. tostring(label)
+	local n = (FrameCounters[key] or 0) + 1
+	FrameCounters[key] = n
+	return key .. "@" .. n
+end
+
+local RegionStack = {}
+local ContainerStack = {}
+local ContainerOrders = {}
+
+local function CurrentContainer()
+	return ContainerStack[#ContainerStack]
+end
+
+local function nextOrder(container)
+	local n = (ContainerOrders[container] or 0) + 1
+	ContainerOrders[container] = n
+	return n
+end
+
+local function PushRegion(kind, rec, container)
+	RegionStack[#RegionStack + 1] = { kind = kind, rec = rec, container = container }
+	if container then
+		ContainerStack[#ContainerStack + 1] = container
+		ContainerOrders[container] = 0
+	end
+end
+
+local function PopRegion(kind)
+	local top = RegionStack[#RegionStack]
+	if top and (kind == nil or top.kind == kind) then
+		if top.container then
+			table.remove(ContainerStack)
+		end
+		table.remove(RegionStack)
+		return true
+	end
+	return false
+end
+
+local function findRegion(kind)
+	for i = #RegionStack, 1, -1 do
+		if RegionStack[i].kind == kind then
+			return RegionStack[i]
+		end
+	end
 end
 
 local OpenPopups = {}
 
 local function closeAllPopups(except)
-    for ctrl, data in pairs(OpenPopups) do
-        if ctrl ~= except then data.Close() end
-    end
+	for i = #OpenPopups, 1, -1 do
+		local pr = OpenPopups[i]
+		if pr ~= except then
+			pcall(pr.closeFn)
+		end
+	end
 end
 
--- Bounds-checked outside click closer so clicking inside popup scrollbar or preview doesn't race
-trackGlobal(UserInputService.InputBegan:Connect(function(input, gpe)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-       or input.UserInputType == Enum.UserInputType.Touch then
-        local mousePos = getMouse()
-        for ctrl, data in pairs(OpenPopups) do
-            if not isPointInGui(mousePos, data.Popup) and not isPointInGui(mousePos, data.Preview) then
-                data.Close()
-            end
-        end
-    end
-end))
+local function frameHeight()
+	return Style.TextSize + Style.FramePadding.Y * 2
+end
+
+local function clampWindowPos(pos, ws)
+	local vp = getViewport()
+	return Vector2.new(
+		math.clamp(pos.X, -ws.size.X + 60, math.max(-ws.size.X + 60, vp.X - 60)),
+		math.clamp(pos.Y, 0, math.max(0, vp.Y - 40))
+	)
+end
+
+local function clampWindowSize(s)
+	local vp = getViewport()
+	local minW = 120
+	local minH = frameHeight() + 40
+	return Vector2.new(
+		math.clamp(s.X, minW, math.max(minW, vp.X)),
+		math.clamp(s.Y, minH, math.max(minH, vp.Y))
+	)
+end
+
+local function leafGuard()
+	local c = CurrentContainer()
+	if not c then
+		error("[IrisX] widget called outside of BeginWindow", 0)
+	end
+	return c
+end
+
+local function loadTheme(name)
+	local t = THEMES[name]
+	if not t then
+		return false
+	end
+	ThemeName = name
+	table.clear(Style)
+	for k, v in pairs(t) do
+		Style[k] = v
+	end
+	Style.Font = Font.fromEnum(Enum.Font.Code)
+	Style.TextSize = 13
+	Style.WindowPadding = Vector2.new(8, 8)
+	Style.FramePadding = Vector2.new(4, 3)
+	Style.ItemSpacing = Vector2.new(8, 4)
+	Style.ItemInnerSpacing = Vector2.new(4, 4)
+	Style.ScrollbarSize = 7
+	Style.GrabWidth = 8
+	Style.ContentWidth = 0.65
+	Style.ResizePadding = 6
+	Style.WindowBorderSize = 1
+	for _, r in pairs(Records) do
+		applyStyle(r)
+	end
+	return true
+end
+
+function IrisX.SetTheme(name)
+	return loadTheme(name)
+end
+
+function IrisX.GetTheme()
+	return ThemeName
+end
+
+local NOTIFY_TEXT_COLORS = {
+	info = Color3.fromRGB(230, 230, 230),
+	success = Color3.fromRGB(150, 230, 170),
+	warning = Color3.fromRGB(240, 200, 120),
+	error = Color3.fromRGB(240, 130, 130),
+}
+
+local NOTIFY_PREFIX = {
+	info = "[info]",
+	success = "[ok]",
+	warning = "[warn]",
+	error = "[error]",
+}
+
+local NOTIFY_POSITIONS = {
+	TopLeft = { anchor = Vector2.new(0, 0), dir = Vector2.new(0, 1), offset = UDim2.new(0, 10, 0, 10) },
+	TopRight = { anchor = Vector2.new(1, 0), dir = Vector2.new(0, 1), offset = UDim2.new(1, -10, 0, 10) },
+	TopCenter = { anchor = Vector2.new(0.5, 0), dir = Vector2.new(0, 1), offset = UDim2.new(0.5, 0, 0, 10) },
+	BottomLeft = { anchor = Vector2.new(0, 1), dir = Vector2.new(0, -1), offset = UDim2.new(0, 10, 1, -10) },
+	BottomRight = { anchor = Vector2.new(1, 1), dir = Vector2.new(0, -1), offset = UDim2.new(1, -10, 1, -10) },
+	BottomCenter = { anchor = Vector2.new(0.5, 1), dir = Vector2.new(0, -1), offset = UDim2.new(0.5, 0, 1, -10) },
+}
 
 local ActiveNotifications = {}
 local ActiveByKey = {}
 local DefaultNotifyPosition = "TopRight"
 
 local function repositionNotifications(position)
-    local cfg = NOTIFY_POSITIONS[position] or NOTIFY_POSITIONS.TopRight
-    local index = 0
-    for _, notif in ipairs(ActiveNotifications) do
-        if notif.position == position and notif.instance.Parent then
-            local gap = 2
-            local notch = notif.instance.AbsoluteSize.Y + gap
-            local stackOffset = index * notch
-            local finalPos
-            if cfg.anchor.X == 0.5 then
-                finalPos = UDim2.new(0.5, 0, cfg.offset.Y.Scale, cfg.offset.Y.Offset + (cfg.dir.Y > 0 and stackOffset or -stackOffset))
-            elseif cfg.anchor.X == 1 then
-                finalPos = UDim2.new(1, -10, cfg.offset.Y.Scale, cfg.offset.Y.Offset + (cfg.dir.Y > 0 and stackOffset or -stackOffset))
-            else
-                finalPos = UDim2.new(0, 10, cfg.offset.Y.Scale, cfg.offset.Y.Offset + (cfg.dir.Y > 0 and stackOffset or -stackOffset))
-            end
-            notif.instance.Position = finalPos
-            index = index + 1
-        end
-    end
+	local cfg = NOTIFY_POSITIONS[position] or NOTIFY_POSITIONS.TopRight
+	local index = 0
+	for _, notif in ipairs(ActiveNotifications) do
+		if notif.position == position and notif.instance.Parent then
+			local gap = 2
+			local notch = notif.instance.AbsoluteSize.Y + gap
+			local stackOffset = index * notch
+			local finalPos
+			if cfg.anchor.X == 0.5 then
+				finalPos = UDim2.new(0.5, 0, cfg.offset.Y.Scale, cfg.offset.Y.Offset + (cfg.dir.Y > 0 and stackOffset or -stackOffset))
+			elseif cfg.anchor.X == 1 then
+				finalPos = UDim2.new(1, -10, cfg.offset.Y.Scale, cfg.offset.Y.Offset + (cfg.dir.Y > 0 and stackOffset or -stackOffset))
+			else
+				finalPos = UDim2.new(0, 10, cfg.offset.Y.Scale, cfg.offset.Y.Offset + (cfg.dir.Y > 0 and stackOffset or -stackOffset))
+			end
+			notif.instance.Position = finalPos
+			index = index + 1
+		end
+	end
 end
 
 local function removeNotification(notif)
-    local idx = table.find(ActiveNotifications, notif)
-    if idx then table.remove(ActiveNotifications, idx) end
-    if notif.key then ActiveByKey[notif.key] = nil end
-    if notif.instance then notif.instance:Destroy() end
-    repositionNotifications(notif.position)
+	local idx = table.find(ActiveNotifications, notif)
+	if idx then
+		table.remove(ActiveNotifications, idx)
+	end
+	if notif.key then
+		ActiveByKey[notif.key] = nil
+	end
+	if notif.instance then
+		notif.instance:Destroy()
+	end
+	repositionNotifications(notif.position)
 end
 
 local function createNotification(text, opts)
-    opts = opts or {}
-    local ntype = opts.Type or "info"
-    local duration = opts.Duration or 3
-    local position = opts.Position or DefaultNotifyPosition
-    local title = opts.Title or "Iris-X"
-    local key = opts.Key
-    local themeName = opts.Theme or "dark"
-    local th = THEMES[themeName] or THEMES.dark
+	if not NotifyGui then
+		return nil
+	end
+	opts = opts or {}
+	local ntype = opts.Type or "info"
+	local duration = opts.Duration or 3
+	local position = opts.Position or DefaultNotifyPosition
+	local title = opts.Title or "Iris-X"
+	local key = opts.Key
 
-    if not NOTIFY_TEXT_COLORS[ntype] then ntype = "info" end
-    if not NOTIFY_POSITIONS[position] then position = "TopRight" end
+	if not NOTIFY_TEXT_COLORS[ntype] then
+		ntype = "info"
+	end
+	if not NOTIFY_POSITIONS[position] then
+		position = "TopRight"
+	end
 
-    if key and ActiveByKey[key] then
-        local existing = ActiveByKey[key]
-        if existing.text == text then
-            existing.remaining = duration
-            existing.startTime = os.clock()
-            return existing
-        else
-            removeNotification(existing)
-        end
-    end
+	if key and ActiveByKey[key] then
+		local existing = ActiveByKey[key]
+		if existing.text == text then
+			existing.remaining = duration
+			existing.startTime = os.clock()
+			return existing
+		else
+			removeNotification(existing)
+		end
+	end
 
-    if #ActiveNotifications >= 5 then
-        removeNotification(ActiveNotifications[1])
-    end
+	if #ActiveNotifications >= 5 then
+		removeNotification(ActiveNotifications[1])
+	end
 
-    local cfg = NOTIFY_POSITIONS[position]
+	local cfg = NOTIFY_POSITIONS[position]
 
-    local notifFrame = new("Frame", {
-        Size = UDim2.fromOffset(260, 58),
-        Position = cfg.offset,
-        AnchorPoint = cfg.anchor,
-        BackgroundColor3 = th.WindowBgColor,
-        BackgroundTransparency = th.WindowBgTransparency,
-        BorderSizePixel = 0,
-    }, NotifyGui)
-    UIStroke(notifFrame, 1, th.BorderColor, th.BorderTransparency)
+	local notifFrame = new("Frame", {
+		Size = UDim2.fromOffset(260, 58),
+		Position = cfg.offset,
+		AnchorPoint = cfg.anchor,
+		BackgroundColor3 = Style.WindowBgColor,
+		BackgroundTransparency = Style.WindowBgTransparency,
+		BorderSizePixel = 0,
+	}, NotifyGui)
+	UIStroke(notifFrame, 1, Style.BorderColor, Style.BorderTransparency)
 
-    local titleBar = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 19),
-        BackgroundColor3 = th.TitleBgActiveColor,
-        BackgroundTransparency = th.TitleBgActiveTransparency,
-        BorderSizePixel = 0,
-    }, notifFrame)
+	local titleBar = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 19),
+		BackgroundColor3 = Style.TitleBgActiveColor,
+		BackgroundTransparency = Style.TitleBgActiveTransparency,
+		BorderSizePixel = 0,
+	}, notifFrame)
 
-    new("TextLabel", {
-        Size = UDim2.new(1, -8, 1, 0),
-        Position = UDim2.new(0, 4, 0, 0),
-        BackgroundTransparency = 1,
-        Text = title,
-        TextColor3 = th.TextColor,
-        TextSize = 13,
-        Font = Enum.Font.Code,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Center,
-        AutoLocalize = false,
-    }, titleBar)
+	new("TextLabel", {
+		Size = UDim2.new(1, -8, 1, 0),
+		Position = UDim2.new(0, 4, 0, 0),
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = Style.TextColor,
+		TextTransparency = Style.TextTransparency,
+		TextSize = 13,
+		Font = Enum.Font.Code,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		AutoLocalize = false,
+	}, titleBar)
 
-    local body = new("Frame", {
-        Size = UDim2.new(1, 0, 1, -19),
-        Position = UDim2.new(0, 0, 0, 19),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-    }, notifFrame)
+	local body = new("Frame", {
+		Size = UDim2.new(1, 0, 1, -19),
+		Position = UDim2.new(0, 0, 0, 19),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+	}, notifFrame)
 
-    new("TextLabel", {
-        Size = UDim2.new(1, -16, 1, 0),
-        Position = UDim2.new(0, 8, 0, 0),
-        BackgroundTransparency = 1,
-        Text = NOTIFY_PREFIX[ntype] .. " " .. tostring(text),
-        TextColor3 = NOTIFY_TEXT_COLORS[ntype],
-        TextSize = 13,
-        Font = Enum.Font.Code,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Center,
-        TextWrapped = true,
-        AutoLocalize = false,
-    }, body)
+	new("TextLabel", {
+		Size = UDim2.new(1, -16, 1, 0),
+		Position = UDim2.new(0, 8, 0, 0),
+		BackgroundTransparency = 1,
+		Text = NOTIFY_PREFIX[ntype] .. " " .. tostring(text),
+		TextColor3 = NOTIFY_TEXT_COLORS[ntype],
+		TextSize = 13,
+		Font = Enum.Font.Code,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextWrapped = true,
+		AutoLocalize = false,
+	}, body)
 
-    local notif = {
-        instance = notifFrame,
-        text = text,
-        type = ntype,
-        position = position,
-        duration = duration,
-        startTime = os.clock(),
-        remaining = duration,
-        key = key,
-    }
+	local notif = {
+		instance = notifFrame,
+		text = text,
+		type = ntype,
+		position = position,
+		duration = duration,
+		startTime = os.clock(),
+		remaining = duration,
+		key = key,
+	}
 
-    table.insert(ActiveNotifications, notif)
-    if key then ActiveByKey[key] = notif end
+	table.insert(ActiveNotifications, notif)
+	if key then
+		ActiveByKey[key] = notif
+	end
 
-    repositionNotifications(position)
-
-    return notif
+	repositionNotifications(position)
+	return notif
 end
 
 local function tickNotifications()
-    local now = os.clock()
-    for i = #ActiveNotifications, 1, -1 do
-        local notif = ActiveNotifications[i]
-        if not notif.instance or not notif.instance.Parent then
-            table.remove(ActiveNotifications, i)
-        elseif now - notif.startTime >= notif.remaining then
-            removeNotification(notif)
-        end
-    end
+	if #ActiveNotifications == 0 then
+		return
+	end
+	local now = os.clock()
+	for i = #ActiveNotifications, 1, -1 do
+		local notif = ActiveNotifications[i]
+		if not notif.instance.Parent then
+			table.remove(ActiveNotifications, i)
+		elseif now - notif.startTime >= notif.remaining then
+			removeNotification(notif)
+		end
+	end
 end
 
-trackGlobal(RunService.Heartbeat:Connect(tickNotifications))
-
-GlobalEnv.__IrisX_Cleanup = function()
-    for _, conn in ipairs(GlobalConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    table.clear(GlobalConnections)
-    for _, gui in ipairs({ RootGui, PopupGui, NotifyGui }) do
-        if gui and gui.Parent then gui:Destroy() end
-    end
+function IrisX.Notify(text, opts)
+	if not Runtime.running then
+		warn("[IrisX] Notify called before Init")
+		return nil
+	end
+	return createNotification(text, opts)
 end
 
-function IrisX:Notify(text, opts)
-    return createNotification(text, opts)
+function IrisX.SetNotifyPosition(pos)
+	if NOTIFY_POSITIONS[pos] then
+		DefaultNotifyPosition = pos
+	end
 end
 
-function IrisX:SetNotifyPosition(pos)
-    if NOTIFY_POSITIONS[pos] then DefaultNotifyPosition = pos end
+function IrisX.GetNotifyPosition()
+	return DefaultNotifyPosition
 end
 
-function IrisX:GetNotifyPosition()
-    return DefaultNotifyPosition
+function IrisX.Text(str, wrapped)
+	local container = leafGuard()
+	local id = widgetID("##text")
+	local r = getRecord(id, function(rr)
+		local t = new("TextLabel", {
+			Size = wrapped and UDim2.new(1, 0, 0, 0) or UDim2.fromOffset(0, 0),
+			AutomaticSize = wrapped and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			TextWrapped = wrapped and true or false,
+			Text = tostring(str),
+		}, container)
+		textStyle(rr, t)
+		rr.container = container
+		return t
+	end)
+	r.inst.Text = tostring(str)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return r.inst
 end
 
-function IrisX:CreateWindow(opts)
-    opts = opts or {}
-    local TitleText = opts.Title or "Iris-X"
-    local size = opts.Size or Vector2.new(320, 400)
-    local position = opts.Position or Vector2.new(150, 150)
-    local theme = (opts.Theme and THEMES[opts.Theme]) and opts.Theme or "dark"
-    local MIN_SIZE = Vector2.new(260, 160)
-
-    local CFG = {}
-    for k, v in pairs(THEMES[theme]) do CFG[k] = v end
-    CFG.TextFont = Font.fromEnum(Enum.Font.Code)
-    CFG.TextSize = 13
-    CFG.WindowPadding = Vector2.new(8, 8)
-    CFG.FramePadding = Vector2.new(4, 3)
-    CFG.ItemSpacing = Vector2.new(8, 4)
-    CFG.ItemInnerSpacing = Vector2.new(4, 4)
-    CFG.FrameBorderSize = 0
-    CFG.FrameRounding = 0
-    CFG.WindowBorderSize = 1
-    CFG.WindowResizePadding = Vector2.new(6, 6)
-    CFG.ScrollbarSize = 7
-    CFG.GrabWidth = 8
-    CFG.ContentWidth = UDim.new(0.65, 0)
-    CFG.ItemWidth = UDim.new(1, 0)
-
-    local themeTargets = {}
-    local connections = {}
-    local drawings = {}
-    local rollbacks = {}
-    local tabGroups = {}
-    local ownedPopups = {}
-    local statefulControls = {}
-
-    local function reg(inst, props)
-        table.insert(themeTargets, { inst = inst, props = props })
-    end
-
-    local function track(conn)
-        table.insert(connections, conn)
-        return conn
-    end
-
-    local function trackDrawing(d)
-        table.insert(drawings, d)
-        return d
-    end
-
-    local function trackRollback(fn)
-        table.insert(rollbacks, fn)
-    end
-
-    local function refreshTheme()
-        for _, target in ipairs(themeTargets) do
-            if target.inst and target.inst.Parent then
-                local p = target.props
-                for i = 1, #p, 2 do
-                    local value = CFG[p[i + 1]]
-                    if value ~= nil then target.inst[p[i]] = value end
-                end
-            end
-        end
-        for _, group in ipairs(tabGroups) do
-            if group.Refresh then group.Refresh() end
-        end
-        for _, fn in ipairs(statefulControls) do
-            fn()
-        end
-    end
-
-    local function applyTextStyle(inst)
-        inst.FontFace = CFG.TextFont
-        inst.TextSize = CFG.TextSize
-        inst.TextColor3 = CFG.TextColor
-        inst.TextTransparency = CFG.TextTransparency
-        inst.TextXAlignment = Enum.TextXAlignment.Left
-        inst.TextYAlignment = Enum.TextYAlignment.Center
-        inst.AutoLocalize = false
-        reg(inst, { "TextColor3", "TextColor", "TextTransparency", "TextTransparency" })
-    end
-
-    local function applyFrameStyle(inst, noPadding)
-        inst.BorderSizePixel = 0
-        if CFG.FrameBorderSize > 0 then
-            local s = UIStroke(inst, CFG.FrameBorderSize, CFG.BorderColor, CFG.BorderTransparency)
-            reg(s, { "Color", "BorderColor", "Transparency", "BorderTransparency" })
-        end
-        if CFG.FrameRounding > 0 then UICorner(inst, CFG.FrameRounding) end
-        if not noPadding then UIPadding(inst, CFG.FramePadding) end
-    end
-
-    local function setColor(inst, prop, value)
-        if value ~= nil then inst[prop .. "Color3"] = value end
-    end
-    local function setTrans(inst, prop, value)
-        if value ~= nil then inst[prop .. "Transparency"] = value end
-    end
-
-    local function resolveKey(val)
-        return type(val) == "number" and val or CFG[val]
-    end
-
-    local function bindInteraction(prop, button, highlightee, colorKeys)
-        local exited = false
-        track(button.MouseEnter:Connect(function()
-            setColor(highlightee, prop, resolveKey(colorKeys.HoveredColor))
-            setTrans(highlightee, prop, resolveKey(colorKeys.HoveredTransparency))
-            exited = false
-        end))
-        track(button.MouseLeave:Connect(function()
-            setColor(highlightee, prop, resolveKey(colorKeys.Color))
-            setTrans(highlightee, prop, resolveKey(colorKeys.Transparency))
-            exited = true
-        end))
-        track(button.InputBegan:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1
-               and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            setColor(highlightee, prop, resolveKey(colorKeys.ActiveColor))
-            setTrans(highlightee, prop, resolveKey(colorKeys.ActiveTransparency))
-        end))
-        track(button.InputEnded:Connect(function(input)
-            if (input.UserInputType ~= Enum.UserInputType.MouseButton1
-               and input.UserInputType ~= Enum.UserInputType.Touch) or exited then return end
-            setColor(highlightee, prop, resolveKey(colorKeys.HoveredColor))
-            setTrans(highlightee, prop, resolveKey(colorKeys.HoveredTransparency))
-        end))
-    end
-
-    -- Container Frame inside RootGui (avoids nested ScreenGui coordinate bugs)
-    local Window = new("Frame", {
-        Name = "IrisX_Window",
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-    }, RootGui)
-
-    local state = {
-        size = size,
-        expandedSize = size,
-        position = position,
-        dragging = false,
-        dragDelta = Vector2.zero,
-        resizing = false,
-        lastMouse = Vector2.zero,
-        hidden = false,
-        isOpen = true,
-        keyCapture = false,
-        toggleKey = opts.Keybind or Enum.KeyCode.Insert,
-    }
-
-    local WindowButton = new("TextButton", {
-        Name = "WindowButton",
-        Size = UDim2.fromOffset(state.size.X, state.size.Y),
-        Position = UDim2.fromOffset(state.position.X, state.position.Y),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        Text = "", AutoButtonColor = false,
-        ClipsDescendants = false, Selectable = false,
-    }, Window)
-    local WindowStroke = UIStroke(WindowButton, CFG.WindowBorderSize, CFG.BorderColor, CFG.BorderTransparency)
-    reg(WindowStroke, { "Color", "BorderColor", "Transparency", "BorderTransparency" })
-
-    local function clampPosition(pos)
-        local cam = workspace.CurrentCamera
-        local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
-        return Vector2.new(
-            math.clamp(pos.X, 0, math.max(0, vp.X - state.size.X)),
-            math.clamp(pos.Y, 0, math.max(0, vp.Y - state.size.Y))
-        )
-    end
-    local function clampSize(s)
-        local cam = workspace.CurrentCamera
-        local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
-        return Vector2.new(
-            math.clamp(s.X, MIN_SIZE.X, math.max(MIN_SIZE.X, vp.X - state.position.X)),
-            math.clamp(s.Y, MIN_SIZE.Y, math.max(MIN_SIZE.Y, vp.Y - state.position.Y))
-        )
-    end
-    local function applyWindow()
-        WindowButton.Size = UDim2.fromOffset(state.size.X, state.size.Y)
-        WindowButton.Position = UDim2.fromOffset(state.position.X, state.position.Y)
-    end
-
-    local Content = new("Frame", {
-        Name = "Content",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1, ClipsDescendants = true,
-    }, WindowButton)
-    local contentLayout = UIListLayout(Content, Enum.FillDirection.Vertical, UDim.new(0, 0))
-    contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    contentLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-
-    local ChildContainer = new("ScrollingFrame", {
-        Name = "WindowContainer",
-        Size = UDim2.fromScale(1, 1),
-        BackgroundColor3 = CFG.WindowBgColor,
-        BackgroundTransparency = CFG.WindowBgTransparency,
-        BorderSizePixel = 0,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        ScrollBarImageTransparency = CFG.ScrollbarGrabTransparency,
-        ScrollBarImageColor3 = CFG.ScrollbarGrabColor,
-        CanvasSize = UDim2.fromScale(0, 0),
-        VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
-        ScrollBarThickness = CFG.ScrollbarSize,
-        TopImage = ICON.BLANK_SQUARE,
-        MidImage = ICON.BLANK_SQUARE,
-        BottomImage = ICON.BLANK_SQUARE,
-        LayoutOrder = 0xFFFF, ClipsDescendants = true,
-    }, Content)
-    reg(ChildContainer, { "BackgroundColor3", "WindowBgColor", "BackgroundTransparency", "WindowBgTransparency" })
-    reg(ChildContainer, { "ScrollBarImageColor3", "ScrollbarGrabColor", "ScrollBarImageTransparency", "ScrollbarGrabTransparency" })
-    -- fill remaining height below TitleBar instead of overlapping it
-    new("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill }, ChildContainer)
-    UIPadding(ChildContainer, CFG.WindowPadding)
-    UIListLayout(ChildContainer, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
-    -- previews move with content on scroll, so close popups instead of letting them detach
-    track(ChildContainer:GetPropertyChangedSignal("CanvasPosition"):Connect(closeAllPopups))
-
-    new("Frame", {
-        Size = UDim2.fromOffset(0, CFG.WindowPadding.Y + CFG.FramePadding.Y),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        LayoutOrder = 0x7FFFFFF0,
-    }, ChildContainer)
-
-    local TitleBar = new("Frame", {
-        Name = "TitleBar",
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Size = UDim2.fromScale(1, 0),
-        BorderSizePixel = 0, ClipsDescendants = true,
-        BackgroundColor3 = CFG.TitleBgActiveColor,
-        BackgroundTransparency = CFG.TitleBgActiveTransparency,
-    }, Content)
-    reg(TitleBar, { "BackgroundColor3", "TitleBgActiveColor", "BackgroundTransparency", "TitleBgActiveTransparency" })
-    UIPadding(TitleBar, Vector2.new(CFG.FramePadding.X, 0))
-    local titleLayout = UIListLayout(TitleBar, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-    titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-
-    local TitleButtonSize = CFG.TextSize + ((CFG.FramePadding.Y - 1) * 2)
-
-    local CollapseButton = new("TextButton", {
-        Name = "CollapseButton",
-        AnchorPoint = Vector2.new(0, 0.5),
-        Size = UDim2.fromOffset(TitleButtonSize, TitleButtonSize),
-        Position = UDim2.fromScale(0, 0.5),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        AutoButtonColor = false, Text = "",
-    }, TitleBar)
-    UICorner(CollapseButton)
-    bindInteraction("Background", CollapseButton, CollapseButton, {
-        Color = "ButtonColor", Transparency = 1,
-        HoveredColor = "ButtonHoveredColor", HoveredTransparency = "ButtonHoveredTransparency",
-        ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
-    })
-
-    local CollapseArrow = new("ImageLabel", {
-        Name = "Arrow",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.fromOffset(math.floor(0.7 * TitleButtonSize), math.floor(0.7 * TitleButtonSize)),
-        Position = UDim2.fromScale(0.5, 0.5),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        Image = ICON.DOWN_POINTING_TRIANGLE,
-        ImageColor3 = CFG.TextColor,
-        ImageTransparency = CFG.TextTransparency,
-        ScaleType = Enum.ScaleType.Fit,
-    }, CollapseButton)
-    reg(CollapseArrow, { "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency" })
-
-    local TitleLabel = new("TextLabel", {
-        Name = "Title",
-        AutomaticSize = Enum.AutomaticSize.XY,
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        LayoutOrder = 1, ClipsDescendants = true,
-        Text = TitleText,
-    }, TitleBar)
-    UIPadding(TitleLabel, Vector2.new(0, CFG.FramePadding.Y))
-    applyTextStyle(TitleLabel)
-    local flex = new("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill }, TitleLabel)
-    flex.ItemLineAlignment = Enum.ItemLineAlignment.Center
-
-    local HideButton = new("TextButton", {
-        Name = "HideButton",
-        AnchorPoint = Vector2.new(1, 0.5),
-        Size = UDim2.fromOffset(TitleButtonSize, TitleButtonSize),
-        Position = UDim2.new(1, -(TitleButtonSize + CFG.ItemInnerSpacing.X), 0.5, 0),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        AutoButtonColor = false, Text = "", LayoutOrder = 1,
-    }, TitleBar)
-    UICorner(HideButton)
-    bindInteraction("Background", HideButton, HideButton, {
-        Color = "ButtonColor", Transparency = 1,
-        HoveredColor = "ButtonHoveredColor", HoveredTransparency = "ButtonHoveredTransparency",
-        ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
-    })
-
-    local HideIcon = new("Frame", {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.fromOffset(math.floor(0.7 * TitleButtonSize), 2),
-        Position = UDim2.fromScale(0.5, 0.5),
-        BackgroundColor3 = CFG.TextColor,
-        BackgroundTransparency = CFG.TextTransparency,
-        BorderSizePixel = 0,
-    }, HideButton)
-    reg(HideIcon, { "BackgroundColor3", "TextColor", "BackgroundTransparency", "TextTransparency" })
-
-    local CloseButton = new("TextButton", {
-        Name = "CloseButton",
-        AnchorPoint = Vector2.new(1, 0.5),
-        Size = UDim2.fromOffset(TitleButtonSize, TitleButtonSize),
-        Position = UDim2.fromScale(1, 0.5),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        AutoButtonColor = false, Text = "", LayoutOrder = 2,
-    }, TitleBar)
-    UICorner(CloseButton)
-    bindInteraction("Background", CloseButton, CloseButton, {
-        Color = "ButtonColor", Transparency = 1,
-        HoveredColor = "ButtonHoveredColor", HoveredTransparency = "ButtonHoveredTransparency",
-        ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
-    })
-    local CloseIcon = new("ImageLabel", {
-        Name = "Icon",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.fromOffset(math.floor(0.7 * TitleButtonSize), math.floor(0.7 * TitleButtonSize)),
-        Position = UDim2.fromScale(0.5, 0.5),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        Image = ICON.MULTIPLICATION_SIGN,
-        ImageColor3 = CFG.TextColor,
-        ImageTransparency = CFG.TextTransparency,
-        ScaleType = Enum.ScaleType.Fit,
-    }, CloseButton)
-    reg(CloseIcon, { "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency" })
-
-    local ResizeButtonSize = CFG.TextSize + CFG.FramePadding.X
-
-    local RightResizeGrip = new("ImageButton", {
-        Name = "RightResizeGrip",
-        AnchorPoint = Vector2.one,
-        Position = UDim2.fromScale(1, 1),
-        Size = UDim2.fromOffset(ResizeButtonSize, ResizeButtonSize),
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        Image = ICON.BOTTOM_RIGHT_CORNER,
-        ImageColor3 = CFG.ResizeGripColor,
-        ImageTransparency = CFG.ResizeGripTransparency,
-        Rotation = 90, AutoButtonColor = false, ZIndex = 3,
-    }, WindowButton)
-    reg(RightResizeGrip, { "ImageColor3", "ResizeGripColor", "ImageTransparency", "ResizeGripTransparency" })
-    bindInteraction("Image", RightResizeGrip, RightResizeGrip, {
-        Color = "ResizeGripColor", Transparency = "ResizeGripTransparency",
-        HoveredColor = "ResizeGripHoveredColor", HoveredTransparency = "ResizeGripHoveredTransparency",
-        ActiveColor = "ResizeGripActiveColor", ActiveTransparency = "ResizeGripActiveTransparency",
-    })
-
-    local RightBorder = new("ImageButton", {
-        Name = "RightResizeBorder",
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.fromScale(1, 0.5),
-        Size = UDim2.new(0, CFG.WindowResizePadding.X, 1, 0),
-        BackgroundTransparency = 1, ImageTransparency = 1,
-        AutoButtonColor = false, ZIndex = 4,
-    }, WindowButton)
-    local BottomBorder = new("ImageButton", {
-        Name = "BottomResizeBorder",
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.fromScale(0.5, 1),
-        Size = UDim2.new(1, 0, 0, CFG.WindowResizePadding.Y),
-        BackgroundTransparency = 1, ImageTransparency = 1,
-        AutoButtonColor = false, ZIndex = 4,
-    }, WindowButton)
-
-    local function startResize()
-        if not state.isOpen then return end
-        state.resizing = true
-        state.lastMouse = getMouse()
-        closeAllPopups()
-    end
-    for _, el in ipairs({ RightResizeGrip, RightBorder, BottomBorder }) do
-        track(el.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-               or input.UserInputType == Enum.UserInputType.Touch then startResize() end
-        end))
-    end
-
-    track(TitleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-           or input.UserInputType == Enum.UserInputType.Touch then
-            state.dragging = true
-            state.dragDelta = getMouse() - state.position
-            closeAllPopups()
-        end
-    end))
-
-    track(UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement
-           and input.UserInputType ~= Enum.UserInputType.Touch then return end
-        if state.dragging then
-            state.position = clampPosition(getMouse() - state.dragDelta)
-            applyWindow()
-        end
-        if state.resizing then
-            local mouse = getMouse()
-            local delta = mouse - state.lastMouse
-            state.lastMouse = mouse
-            state.size = clampSize(Vector2.new(state.size.X + delta.X, state.size.Y + delta.Y))
-            state.expandedSize = state.size
-            applyWindow()
-        end
-    end))
-
-    track(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-           or input.UserInputType == Enum.UserInputType.Touch then
-            state.dragging = false
-            state.resizing = false
-        end
-    end))
-
-    local Win = {}
-    Win._gui = Window
-    Win._container = ChildContainer
-    Win._track = track
-    Win._trackDrawing = trackDrawing
-    Win._trackRollback = trackRollback
-    Win._theme = theme
-
-    function Win:Text(str, a, b)
-        local parent, opts
-        if typeof(a) == "table" then
-            opts = a
-            parent = b
-        elseif typeof(a) == "Instance" then
-            parent = a
-            opts = b
-        else
-            if typeof(b) == "table" then opts = b end
-            if typeof(b) == "Instance" then parent = b end
-        end
-
-        opts = opts or {}
-        local wrapped = opts.Wrapped or false
-        local container = (typeof(parent) == "Instance" and parent) or ChildContainer
-        local t = new("TextLabel", {
-            Size = wrapped and UDim2.new(1, 0, 0, 0) or UDim2.fromOffset(0, 0),
-            AutomaticSize = wrapped and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = tostring(str),
-            TextWrapped = wrapped,
-        }, container)
-        applyTextStyle(t)
-        if opts.Color then t.TextColor3 = opts.Color end
-        return t
-    end
-
-    function Win:Separator(parent)
-        local s = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = CFG.SeparatorColor,
-            BackgroundTransparency = CFG.SeparatorTransparency,
-            BorderSizePixel = 0,
-        }, parent or ChildContainer)
-        reg(s, { "BackgroundColor3", "SeparatorColor", "BackgroundTransparency", "SeparatorTransparency" })
-        return s
-    end
-
-    function Win:SeparatorText(text, parent)
-        local container = parent or ChildContainer
-        local frameHeight = CFG.TextSize + 2 * CFG.FramePadding.Y
-        local Sep = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, frameHeight),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            ClipsDescendants = true,
-        }, container)
-        UIPadding(Sep, Vector2.new(0, 3))
-        local l = UIListLayout(Sep, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemSpacing.X))
-        l.VerticalAlignment = Enum.VerticalAlignment.Center
-
-        local Label = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = text, LayoutOrder = 1,
-        }, Sep)
-        applyTextStyle(Label)
-
-        local Left = new("Frame", {
-            AnchorPoint = Vector2.new(1, 0.5),
-            Size = UDim2.fromOffset(20, 1),
-            BackgroundColor3 = CFG.SeparatorColor,
-            BackgroundTransparency = CFG.SeparatorTransparency,
-            BorderSizePixel = 0,
-        }, Sep)
-
-        local Right = new("Frame", {
-            AnchorPoint = Vector2.new(1, 0.5),
-            Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = CFG.SeparatorColor,
-            BackgroundTransparency = CFG.SeparatorTransparency,
-            BorderSizePixel = 0, LayoutOrder = 2,
-        }, Sep)
-
-        reg(Left, { "BackgroundColor3", "SeparatorColor", "BackgroundTransparency", "SeparatorTransparency" })
-        reg(Right, { "BackgroundColor3", "SeparatorColor", "BackgroundTransparency", "SeparatorTransparency" })
-        return Sep
-    end
-
-    function Win:Button(text, callback, parent)
-        local b = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            Size = UDim2.fromOffset(0, 0),
-            BackgroundColor3 = CFG.ButtonColor,
-            BackgroundTransparency = CFG.ButtonTransparency,
-            BorderSizePixel = 0, Text = text, AutoButtonColor = false,
-        }, parent or ChildContainer)
-        applyTextStyle(b)
-        b.TextXAlignment = Enum.TextXAlignment.Center
-        applyFrameStyle(b)
-        reg(b, { "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency" })
-        bindInteraction("Background", b, b, {
-            Color = "ButtonColor", Transparency = "ButtonTransparency",
-            HoveredColor = "ButtonHoveredColor", HoveredTransparency = "ButtonHoveredTransparency",
-            ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
-        })
-        if callback then track(b.MouseButton1Click:Connect(function() callback(b) end)) end
-        return b
-    end
-
-    function Win:Toggle(text, default, callback, parent)
-        local isChecked = default or false
-        local container = parent or ChildContainer
-        local Checkbox = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            Size = UDim2.fromOffset(0, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = "", AutoButtonColor = false,
-        }, container)
-        local l = UIListLayout(Checkbox, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-        l.VerticalAlignment = Enum.VerticalAlignment.Center
-
-        local checkboxSize = CFG.TextSize + 2 * CFG.FramePadding.Y
-        local Box = new("Frame", {
-            Size = UDim2.fromOffset(checkboxSize, checkboxSize),
-            BackgroundColor3 = CFG.FrameBgColor,
-            BackgroundTransparency = CFG.FrameBgTransparency,
-            BorderSizePixel = 0,
-        }, Checkbox)
-        applyFrameStyle(Box, true)
-        reg(Box, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
-        UIPadding(Box, Vector2.new(math.floor(checkboxSize / 10), math.floor(checkboxSize / 10)))
-
-        bindInteraction("Background", Checkbox, Box, {
-            Color = "FrameBgColor", Transparency = "FrameBgTransparency",
-            HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
-            ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
-        })
-
-        local Checkmark = new("ImageLabel", {
-            Size = UDim2.fromScale(1, 1),
-            BackgroundTransparency = 1,
-            Image = ICON.CHECKMARK,
-            ImageColor3 = CFG.CheckMarkColor,
-            ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1,
-            ScaleType = Enum.ScaleType.Fit,
-        }, Box)
-        -- Only register ImageColor3 so theme changes don't force unchecked boxes visible
-        reg(Checkmark, { "ImageColor3", "CheckMarkColor" })
-        table.insert(statefulControls, function()
-            if Checkmark.Parent then
-                Checkmark.ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1
-            end
-        end)
-
-        track(Checkbox.MouseButton1Click:Connect(function()
-            isChecked = not isChecked
-            Checkmark.ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1
-            if callback then callback(isChecked) end
-        end))
-
-        local TextLabel = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            LayoutOrder = 1, Text = text,
-        }, Checkbox)
-        applyTextStyle(TextLabel)
-
-        return {
-            Instance = Checkbox,
-            Get = function() return isChecked end,
-            Set = function(v, silent)
-                isChecked = not not v
-                Checkmark.ImageTransparency = isChecked and CFG.CheckMarkTransparency or 1
-                if callback and not silent then callback(isChecked) end
-            end,
-        }
-    end
-
-    function Win:RadioGroup()
-        local group = { radios = {} }
-
-        function group:Add(text, default, callback, parent)
-            return Win:Radio(text, default, callback, parent, group)
-        end
-
-        function group:Get()
-            for _, r in ipairs(group.radios) do
-                if r.get() then return r.text end
-            end
-            return nil
-        end
-
-        function group:Set(value)
-            for _, r in ipairs(group.radios) do
-                r.public.Set(r.text == value)
-            end
-        end
-
-        return group
-    end
-
-    function Win:Radio(text, default, callback, parent, group)
-        local isSelected = default or false
-        local container = parent or ChildContainer
-        local Radio = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            Size = UDim2.fromOffset(0, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = "", AutoButtonColor = false,
-        }, container)
-        local l = UIListLayout(Radio, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-        l.VerticalAlignment = Enum.VerticalAlignment.Center
-
-        local buttonSize = CFG.TextSize + 2 * (CFG.FramePadding.Y - 1)
-        local Button = new("Frame", {
-            Size = UDim2.fromOffset(buttonSize, buttonSize),
-            BackgroundColor3 = CFG.FrameBgColor,
-            BackgroundTransparency = CFG.FrameBgTransparency,
-            BorderSizePixel = 0,
-        }, Radio)
-        UICorner(Button)
-        UIPadding(Button, Vector2.new(math.max(1, math.floor(buttonSize / 5)), math.max(1, math.floor(buttonSize / 5))))
-        reg(Button, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
-
-        local Circle = new("Frame", {
-            Size = UDim2.fromScale(1, 1),
-            BackgroundColor3 = CFG.CheckMarkColor,
-            BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1,
-            BorderSizePixel = 0,
-        }, Button)
-        UICorner(Circle)
-        reg(Circle, { "BackgroundColor3", "CheckMarkColor" })
-        table.insert(statefulControls, function()
-            if Circle.Parent then
-                Circle.BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1
-            end
-        end)
-
-        bindInteraction("Background", Radio, Button, {
-            Color = "FrameBgColor", Transparency = "FrameBgTransparency",
-            HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
-            ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
-        })
-
-        local radio = {}
-        local record
-
-        local function apply(v)
-            isSelected = not not v
-            Circle.BackgroundTransparency = isSelected and CFG.CheckMarkTransparency or 1
-        end
-
-        local function setSelected(silent)
-            if isSelected then return end
-            apply(true)
-            if group then
-                for _, other in ipairs(group.radios) do
-                    if other ~= record and other.get() then
-                        other.apply(false)
-                        if not silent and other.callback then other.callback(false) end
-                    end
-                end
-            end
-            if not silent and callback then callback(true) end
-        end
-
-        record = {
-            text = text,
-            callback = callback,
-            get = function() return isSelected end,
-            apply = apply,
-            public = radio,
-        }
-        if group then
-            table.insert(group.radios, record)
-            -- a later default=true clears earlier defaults without firing their callbacks
-            if isSelected then
-                for _, other in ipairs(group.radios) do
-                    if other ~= record and other.get() then other.apply(false) end
-                end
-            end
-        end
-
-        track(Radio.MouseButton1Click:Connect(function()
-            setSelected(false)
-        end))
-
-        local TextLabel = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            LayoutOrder = 1, Text = text,
-        }, Radio)
-        applyTextStyle(TextLabel)
-
-        radio.Instance = Radio
-        radio.Text = text
-        radio.Get = function() return isSelected end
-        radio.Set = function(v, silent)
-            if v then
-                setSelected(silent)
-            elseif isSelected then
-                apply(false)
-                if not silent and callback then callback(false) end
-            end
-        end
-
-        return radio
-    end
-
-    function Win:Slider(text, min, max, default, callback, a, b)
-        local parent, opts
-        if typeof(a) == "table" then
-            opts = a
-            parent = b
-        elseif typeof(a) == "Instance" then
-            parent = a
-            opts = b
-        else
-            if typeof(b) == "table" then opts = b end
-            if typeof(b) == "Instance" then parent = b end
-        end
-
-        opts = opts or {}
-        min = min or 0
-        max = max or 100
-        local step = opts.Step
-        local precision = opts.Precision
-        if not precision then
-            precision = (step and step >= 1 and step % 1 == 0) and 0 or 2
-        end
-        local function snap(v)
-            v = math.clamp(v, min, max)
-            if step and step > 0 then
-                v = min + math.floor((v - min) / step + 0.5) * step
-            end
-            return math.clamp(v, min, max)
-        end
-        local function formatValue(v)
-            return string.format("%." .. precision .. "f", v)
-        end
-        default = snap(math.clamp(default or min, min, max))
-        local container = (typeof(parent) == "Instance" and parent) or ChildContainer
-
-        local Slider = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(CFG.ItemWidth, UDim.new(0, 0)),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-        }, container)
-        local l = UIListLayout(Slider, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-        l.VerticalAlignment = Enum.VerticalAlignment.Center
-
-        local SliderField = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(CFG.ContentWidth, UDim.new(0, 0)),
-            BackgroundColor3 = CFG.FrameBgColor,
-            BackgroundTransparency = CFG.FrameBgTransparency,
-            Text = "", AutoButtonColor = false,
-            ClipsDescendants = true,
-        }, Slider)
-        applyFrameStyle(SliderField)
-        reg(SliderField, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
-
-        local OverlayText = new("TextLabel", {
-            Size = UDim2.fromScale(1, 1),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            ZIndex = 10, ClipsDescendants = true,
-            Text = formatValue(default),
-        }, SliderField)
-        applyTextStyle(OverlayText)
-        OverlayText.TextXAlignment = Enum.TextXAlignment.Center
-
-        bindInteraction("Background", SliderField, SliderField, {
-            Color = "FrameBgColor", Transparency = "FrameBgTransparency",
-            HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
-            ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
-        })
-
-        local grabWidth = CFG.GrabWidth
-        local GrabBar = new("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0, 0, 0.5, 0),
-            Size = UDim2.new(0, grabWidth, 1, 0),
-            BackgroundColor3 = CFG.SliderGrabColor,
-            BackgroundTransparency = CFG.SliderGrabTransparency,
-            BorderSizePixel = 0, ZIndex = 5,
-        }, SliderField)
-        reg(GrabBar, { "BackgroundColor3", "SliderGrabColor", "BackgroundTransparency", "SliderGrabTransparency" })
-
-        bindInteraction("Background", SliderField, GrabBar, {
-            Color = "SliderGrabColor", Transparency = "SliderGrabTransparency",
-            HoveredColor = "SliderGrabColor", HoveredTransparency = "SliderGrabTransparency",
-            ActiveColor = "SliderGrabActiveColor", ActiveTransparency = "SliderGrabActiveTransparency",
-        })
-
-        local TextLabel = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            LayoutOrder = 5, Text = text,
-        }, Slider)
-        applyTextStyle(TextLabel)
-
-        local value = default
-        local dragging = false
-
-        local function reposition()
-            local w = SliderField.AbsoluteSize.X
-            local grabW = GrabBar.AbsoluteSize.X
-            local paddedW = w - grabW
-            if paddedW <= 0 or (max - min) == 0 then return end
-            local ratio = (value - min) / (max - min)
-            local paddedRatio = ((paddedW / w) * ratio) + ((1 - (paddedW / w)) / 2)
-            GrabBar.Position = UDim2.fromScale(paddedRatio, 0.5)
-        end
-
-        local function updateFromMouse(mouseX)
-            local abs = SliderField.AbsolutePosition.X
-            local w = SliderField.AbsoluteSize.X
-            local grabW = GrabBar.AbsoluteSize.X
-            local paddedW = w - grabW
-            if paddedW <= 0 then return end
-            local offset = mouseX - (abs + grabW / 2)
-            local ratio = math.clamp(offset / paddedW, 0, 1)
-            value = snap(min + (max - min) * ratio)
-            reposition()
-            OverlayText.Text = formatValue(value)
-            if callback then callback(value) end
-        end
-
-        track(SliderField:GetPropertyChangedSignal("AbsoluteSize"):Connect(reposition))
-        task.defer(reposition)
-
-        track(SliderField.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-               or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                updateFromMouse(input.Position.X)
-            end
-        end))
-
-        track(UserInputService.InputChanged:Connect(function(input)
-            if not dragging then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement
-               or input.UserInputType == Enum.UserInputType.Touch then
-                updateFromMouse(input.Position.X)
-            end
-        end))
-
-        track(UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-               or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = false
-            end
-        end))
-
-        return {
-            Instance = Slider,
-            Get = function() return value end,
-            Set = function(v, silent)
-                value = snap(v)
-                reposition()
-                OverlayText.Text = formatValue(value)
-                if callback and not silent then callback(value) end
-            end,
-        }
-    end
-
-    function Win:Input(text, placeholder, callback, parent)
-        local container = parent or ChildContainer
-
-        local Row = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(CFG.ItemWidth, UDim.new(0, 0)),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-        }, container)
-        local l = UIListLayout(Row, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-        l.VerticalAlignment = Enum.VerticalAlignment.Center
-
-        local Field = new("TextBox", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(CFG.ContentWidth, UDim.new(0, 0)),
-            BackgroundColor3 = CFG.FrameBgColor,
-            BackgroundTransparency = CFG.FrameBgTransparency,
-            BorderSizePixel = 0,
-            Text = "",
-            PlaceholderText = placeholder or "",
-            PlaceholderColor3 = CFG.TextDisabledColor,
-            ClearTextOnFocus = false,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-        }, Row)
-        applyFrameStyle(Field)
-        applyTextStyle(Field)
-        reg(Field, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
-        reg(Field, { "PlaceholderColor3", "TextDisabledColor" })
-        bindInteraction("Background", Field, Field, {
-            Color = "FrameBgColor", Transparency = "FrameBgTransparency",
-            HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
-            ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
-        })
-
-        track(Field.FocusLost:Connect(function()
-            if callback then callback(Field.Text) end
-        end))
-
-        local TextLabel = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            LayoutOrder = 1, Text = text,
-        }, Row)
-        applyTextStyle(TextLabel)
-
-        return {
-            Instance = Row,
-            Get = function() return Field.Text end,
-            Set = function(v, silent)
-                Field.Text = tostring(v)
-                if callback and not silent then callback(Field.Text) end
-            end,
-        }
-    end
-
-    function Win:Keybind(text, default, callback, parent)
-        local currentKey = default or Enum.KeyCode.Unknown
-        local listening = false
-        local container = parent or ChildContainer
-
-        local b = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            Size = UDim2.fromOffset(0, 0),
-            BackgroundColor3 = CFG.ButtonColor,
-            BackgroundTransparency = CFG.ButtonTransparency,
-            BorderSizePixel = 0, Text = text .. ": " .. currentKey.Name,
-            AutoButtonColor = false,
-        }, container)
-        applyTextStyle(b)
-        b.TextXAlignment = Enum.TextXAlignment.Center
-        applyFrameStyle(b)
-        reg(b, { "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency" })
-        bindInteraction("Background", b, b, {
-            Color = "ButtonColor", Transparency = "ButtonTransparency",
-            HoveredColor = "ButtonHoveredColor", HoveredTransparency = "ButtonHoveredTransparency",
-            ActiveColor = "ButtonActiveColor", ActiveTransparency = "ButtonActiveTransparency",
-        })
-
-        local function stopListening()
-            listening = false
-            task.defer(function()
-                if not listening then state.keyCapture = false end
-            end)
-        end
-
-        track(b.MouseButton1Click:Connect(function()
-            listening = true
-            state.keyCapture = true
-            b.Text = text .. ": ..."
-        end))
-
-        track(UserInputService.InputBegan:Connect(function(input, gpe)
-            if not listening or gpe then return end
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                if input.KeyCode == Enum.KeyCode.Escape then
-                    currentKey = Enum.KeyCode.Unknown
-                else
-                    currentKey = input.KeyCode
-                end
-                b.Text = text .. ": " .. currentKey.Name
-                stopListening()
-                if callback then callback(currentKey) end
-            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-                stopListening()
-                b.Text = text .. ": " .. currentKey.Name
-            end
-        end))
-
-        return {
-            Instance = b,
-            Get = function() return currentKey end,
-            Set = function(k, silent)
-                currentKey = k or Enum.KeyCode.Unknown
-                b.Text = text .. ": " .. currentKey.Name
-                if callback and not silent then callback(currentKey) end
-            end,
-        }
-    end
-
-    function Win:Combo(text, options, default, callback, parent)
-        options = options or {}
-        local container = parent or ChildContainer
-        local selected = default or options[1]
-        local isOpen = false
-
-        local frameHeight = CFG.TextSize + 2 * CFG.FramePadding.Y
-        local Combo = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(CFG.ItemWidth, UDim.new(0, 0)),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-        }, container)
-        local l = UIListLayout(Combo, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-        l.VerticalAlignment = Enum.VerticalAlignment.Center
-
-        local Preview = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(CFG.ContentWidth, UDim.new(0, 0)),
-            BackgroundColor3 = CFG.FrameBgColor,
-            BackgroundTransparency = CFG.FrameBgTransparency,
-            BorderSizePixel = 0, Text = "", AutoButtonColor = false,
-            ClipsDescendants = true, ZIndex = 2,
-        }, Combo)
-        applyFrameStyle(Preview)
-        reg(Preview, { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency" })
-
-        bindInteraction("Background", Preview, Preview, {
-            Color = "FrameBgColor", Transparency = "FrameBgTransparency",
-            HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
-            ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
-        })
-
-        local PreviewText = new("TextLabel", {
-            Size = UDim2.new(1, -frameHeight, 1, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = tostring(selected),
-        }, Preview)
-        applyTextStyle(PreviewText)
-        UIPadding(PreviewText, CFG.FramePadding)
-
-        local ArrowBox = new("Frame", {
-            Size = UDim2.new(0, frameHeight, 1, 0),
-            Position = UDim2.new(1, -frameHeight, 0, 0),
-            BackgroundColor3 = CFG.ButtonColor,
-            BackgroundTransparency = CFG.ButtonTransparency,
-            BorderSizePixel = 0,
-        }, Preview)
-        reg(ArrowBox, { "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency" })
-
-        local Arrow = new("ImageLabel", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Size = UDim2.fromOffset(math.floor(frameHeight * 0.6), math.floor(frameHeight * 0.6)),
-            Position = UDim2.fromScale(0.5, 0.5),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Image = ICON.DOWN_POINTING_TRIANGLE,
-            ImageColor3 = CFG.TextColor,
-            ImageTransparency = CFG.TextTransparency,
-            ScaleType = Enum.ScaleType.Fit,
-        }, ArrowBox)
-        reg(Arrow, { "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency" })
-
-        local TextLabel = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            LayoutOrder = 1, Text = text,
-        }, Combo)
-        applyTextStyle(TextLabel)
-
-        local Popup = new("ScrollingFrame", {
-            BackgroundColor3 = CFG.PopupBgColor,
-            BackgroundTransparency = CFG.PopupBgTransparency,
-            BorderSizePixel = 0,
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarImageTransparency = CFG.ScrollbarGrabTransparency,
-            ScrollBarImageColor3 = CFG.ScrollbarGrabColor,
-            ScrollBarThickness = CFG.ScrollbarSize,
-            CanvasSize = UDim2.fromScale(0, 0),
-            VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
-            TopImage = ICON.BLANK_SQUARE,
-            MidImage = ICON.BLANK_SQUARE,
-            BottomImage = ICON.BLANK_SQUARE,
-            ClipsDescendants = true,
-            Visible = false,
-            ZIndex = 500,
-        }, PopupGui)
-        table.insert(ownedPopups, Popup)
-        local popupStroke = UIStroke(Popup, CFG.WindowBorderSize, CFG.BorderColor, CFG.BorderTransparency)
-        reg(popupStroke, { "Color", "BorderColor", "Transparency", "BorderTransparency" })
-        UIPadding(Popup, Vector2.new(2, CFG.WindowPadding.Y))
-        local popupLayout = UIListLayout(Popup, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
-        popupLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-        reg(Popup, { "BackgroundColor3", "PopupBgColor", "BackgroundTransparency", "PopupBgTransparency" })
-        reg(Popup, { "ScrollBarImageColor3", "ScrollbarGrabColor", "ScrollBarImageTransparency", "ScrollbarGrabTransparency" })
-
-        local optionButtons = {}
-        for _, opt in ipairs(options) do
-            local ob = new("TextButton", {
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Size = UDim2.new(1, 0, 0, frameHeight),
-                BackgroundColor3 = CFG.FrameBgColor,
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0, Text = tostring(opt), AutoButtonColor = false,
-            }, Popup)
-            applyTextStyle(ob)
-            UIPadding(ob, CFG.FramePadding)
-            bindInteraction("Background", ob, ob, {
-                Color = "FrameBgColor", Transparency = 1,
-                HoveredColor = "FrameBgHoveredColor", HoveredTransparency = "FrameBgHoveredTransparency",
-                ActiveColor = "FrameBgActiveColor", ActiveTransparency = "FrameBgActiveTransparency",
-            })
-            table.insert(optionButtons, { instance = ob, value = opt })
-        end
-
-        local comboControl
-
-        local function closePopup()
-            if not isOpen then return end
-            isOpen = false
-            Popup.Visible = false
-            OpenPopups[comboControl] = nil
-        end
-
-        local function openPopup()
-            closeAllPopups(comboControl)
-            isOpen = true
-            Popup.Visible = true
-            OpenPopups[comboControl] = { Close = closePopup, Popup = Popup, Preview = Preview }
-
-            local previewPos = Preview.AbsolutePosition
-            local previewSize = Preview.AbsoluteSize
-            local contentH = popupLayout.AbsoluteContentSize.Y + 2 * CFG.WindowPadding.Y
-            local cam = workspace.CurrentCamera
-            local screenSize = cam and cam.ViewportSize or Vector2.new(1920, 1080)
-
-            local x = previewPos.X
-            local y = previewPos.Y + previewSize.Y + 1
-            if y + contentH > screenSize.Y then
-                y = previewPos.Y - math.min(contentH, 200) - 1
-            end
-
-            Popup.Position = UDim2.fromOffset(x, y)
-            Popup.Size = UDim2.fromOffset(previewSize.X, math.min(contentH, 200))
-        end
-
-        for _, entry in ipairs(optionButtons) do
-            track(entry.instance.MouseButton1Click:Connect(function()
-                selected = entry.value
-                PreviewText.Text = tostring(selected)
-                closePopup()
-                if callback then callback(selected) end
-            end))
-        end
-
-        track(Preview.MouseButton1Click:Connect(function()
-            if isOpen then closePopup() else openPopup() end
-        end))
-
-        comboControl = {
-            Instance = Combo,
-            Popup = Popup,
-            Get = function() return selected end,
-            Set = function(v, silent)
-                selected = v
-                PreviewText.Text = tostring(selected)
-                if callback and not silent then callback(selected) end
-            end,
-            Close = closePopup,
-        }
-
-        return comboControl
-    end
-
-    function Win:Tabs(parent)
-        local container = parent or ChildContainer
-
-        local TabBar = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-        }, container)
-        UIListLayout(TabBar, Enum.FillDirection.Vertical, UDim.new(0, 0))
-
-        local Bar = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-        }, TabBar)
-        UIListLayout(Bar, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-
-        local Underline = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = CFG.TabActiveColor,
-            BackgroundTransparency = CFG.TabActiveTransparency,
-            BorderSizePixel = 0, LayoutOrder = 1,
-        }, TabBar)
-        reg(Underline, { "BackgroundColor3", "TabActiveColor", "BackgroundTransparency", "TabActiveTransparency" })
-
-        local Body = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            LayoutOrder = 2, ClipsDescendants = true,
-        }, TabBar)
-        UIPadding(Body, Vector2.new(0, CFG.ItemSpacing.Y))
-        UIListLayout(Body, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
-
-        local tabs = {}
-        local current = nil
-        local Group = {}
-
-        local function updateTabColors()
-            for _, t in ipairs(tabs) do
-                if t == current then
-                    t.Instance.BackgroundColor3 = CFG.TabActiveColor
-                    t.Instance.BackgroundTransparency = CFG.TabActiveTransparency
-                else
-                    t.Instance.BackgroundColor3 = CFG.TabColor
-                    t.Instance.BackgroundTransparency = CFG.TabTransparency
-                end
-            end
-        end
-
-        Group.Refresh = updateTabColors
-        table.insert(tabGroups, Group)
-
-        function Group:AddTab(title)
-            local TabButton = new("TextButton", {
-                AutomaticSize = Enum.AutomaticSize.XY,
-                Size = UDim2.fromOffset(0, 0),
-                BackgroundColor3 = CFG.TabColor,
-                BackgroundTransparency = CFG.TabTransparency,
-                BorderSizePixel = 0, Text = "", AutoButtonColor = false,
-            }, Bar)
-            UIPadding(TabButton, Vector2.new(CFG.FramePadding.X, 0))
-            applyFrameStyle(TabButton, true)
-            local tl = UIListLayout(TabButton, Enum.FillDirection.Horizontal, UDim.new(0, CFG.ItemInnerSpacing.X))
-            tl.VerticalAlignment = Enum.VerticalAlignment.Center
-
-            local TabLabel = new("TextLabel", {
-                AutomaticSize = Enum.AutomaticSize.XY,
-                BackgroundTransparency = 1, BorderSizePixel = 0,
-                Text = title,
-            }, TabButton)
-            applyTextStyle(TabLabel)
-            UIPadding(TabLabel, Vector2.new(0, CFG.FramePadding.Y))
-
-            local TabBody = new("Frame", {
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Size = UDim2.fromScale(1, 0),
-                BackgroundTransparency = 1, BorderSizePixel = 0,
-                Visible = false,
-            }, Body)
-            UIListLayout(TabBody, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
-
-            local entry = {
-                Instance = TabButton,
-                Body = TabBody,
-                Title = title,
-            }
-            table.insert(tabs, entry)
-
-            track(TabButton.MouseButton1Click:Connect(function()
-                Group:SelectTab(entry)
-            end))
-
-            track(TabButton.MouseEnter:Connect(function()
-                if current ~= entry then
-                    TabButton.BackgroundColor3 = CFG.TabHoveredColor
-                    TabButton.BackgroundTransparency = CFG.TabHoveredTransparency
-                end
-            end))
-            track(TabButton.MouseLeave:Connect(function()
-                if current ~= entry then
-                    TabButton.BackgroundColor3 = CFG.TabColor
-                    TabButton.BackgroundTransparency = CFG.TabTransparency
-                end
-            end))
-
-            if current == nil then Group:SelectTab(entry) end
-
-            return TabBody
-        end
-
-        function Group:SelectTab(entry)
-            closeAllPopups()
-            for _, t in ipairs(tabs) do
-                t.Body.Visible = (t == entry)
-            end
-            current = entry
-            updateTabColors()
-        end
-
-        function Group:GetCurrent() return current end
-
-        return Group
-    end
-
-    function Win:Section(title, a, b)
-        local defaultOpen, parent
-        if typeof(a) == "boolean" then
-            defaultOpen = a
-            parent = b
-        elseif typeof(a) == "Instance" then
-            parent = a
-            defaultOpen = b
-        else
-            if typeof(b) == "Instance" then parent = b end
-            if typeof(b) == "boolean" then defaultOpen = b end
-        end
-
-        local container = (typeof(parent) == "Instance" and parent) or ChildContainer
-        local Section = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-        }, container)
-        UIListLayout(Section, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
-
-        local Header = new("TextButton", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.fromScale(1, 0),
-            BackgroundColor3 = CFG.HeaderColor,
-            BackgroundTransparency = CFG.HeaderTransparency,
-            BorderSizePixel = 0, Text = "", AutoButtonColor = false,
-        }, Section)
-        applyFrameStyle(Header)
-        local hl = UIListLayout(Header, Enum.FillDirection.Horizontal, UDim.new(0, CFG.FramePadding.X))
-        hl.VerticalAlignment = Enum.VerticalAlignment.Center
-        reg(Header, { "BackgroundColor3", "HeaderColor", "BackgroundTransparency", "HeaderTransparency" })
-
-        local isOpen = defaultOpen == true
-
-        local Arrow = new("ImageLabel", {
-            Size = UDim2.fromOffset(CFG.TextSize, math.ceil(CFG.TextSize * 0.8)),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE,
-            ImageColor3 = CFG.TextColor,
-            ImageTransparency = CFG.TextTransparency,
-            ScaleType = Enum.ScaleType.Fit,
-        }, Header)
-        reg(Arrow, { "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency" })
-
-        local Label = new("TextLabel", {
-            AutomaticSize = Enum.AutomaticSize.XY,
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Text = title,
-        }, Header)
-        applyTextStyle(Label)
-
-        local Body = new("Frame", {
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.fromScale(1, 0),
-            BackgroundTransparency = 1, BorderSizePixel = 0,
-            Visible = isOpen,
-        }, Section)
-        UIPadding(Body, Vector2.new(CFG.ItemInnerSpacing.X + 4, 0))
-        UIListLayout(Body, Enum.FillDirection.Vertical, UDim.new(0, CFG.ItemSpacing.Y))
-
-        track(Header.MouseEnter:Connect(function()
-            Header.BackgroundColor3 = CFG.HeaderHoveredColor
-            Header.BackgroundTransparency = CFG.HeaderHoveredTransparency
-        end))
-        track(Header.MouseLeave:Connect(function()
-            Header.BackgroundColor3 = CFG.HeaderColor
-            Header.BackgroundTransparency = CFG.HeaderTransparency
-        end))
-        track(Header.MouseButton1Click:Connect(function()
-            isOpen = not isOpen
-            Body.Visible = isOpen
-            Arrow.Image = isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
-        end))
-
-        return Body
-    end
-
-    function Win:SetTheme(name)
-        if not THEMES[name] then return end
-        theme = name
-        Win._theme = name
-        for k, v in pairs(THEMES[name]) do CFG[k] = v end
-        refreshTheme()
-    end
-
-    function Win:GetTheme() return theme end
-
-    function Win:ToggleTheme()
-        if theme == "dark" then self:SetTheme("light") else self:SetTheme("dark") end
-        return theme
-    end
-
-    function Win:AddThemeButton(parent)
-        local btn
-        btn = Win:Button("Theme: " .. (theme == "dark" and "Dark" or "Light"), function()
-            if theme == "dark" then
-                Win:SetTheme("light")
-                btn.Text = "Theme: Light"
-            else
-                Win:SetTheme("dark")
-                btn.Text = "Theme: Dark"
-            end
-        end, parent)
-        return btn
-    end
-
-    function Win:AddHideButton(bind, parent)
-        if bind then state.toggleKey = bind end
-        return Win:Button("Hide UI (" .. state.toggleKey.Name .. ")", function()
-            state.hidden = true
-            WindowButton.Visible = false
-            closeAllPopups()
-            IrisX:Notify("UI hidden. Press " .. state.toggleKey.Name .. " to show.", { Type = "info", Duration = 2, Theme = theme })
-        end, parent)
-    end
-
-    function Win:AddUnloadButton(parent)
-        return Win:Button("Unload Script", function() Win:Destroy() end, parent)
-    end
-
-    function Win:Destroy()
-        closeAllPopups()
-
-        for _, popup in ipairs(ownedPopups) do
-            if popup and popup.Parent then popup:Destroy() end
-        end
-        table.clear(ownedPopups)
-        table.clear(tabGroups)
-        table.clear(statefulControls)
-
-        for _, conn in ipairs(connections) do
-            pcall(function() conn:Disconnect() end)
-        end
-        table.clear(connections)
-
-        for _, d in ipairs(drawings) do
-            pcall(function() d:Remove() end)
-        end
-        table.clear(drawings)
-
-        for _, fn in ipairs(rollbacks) do
-            pcall(fn)
-        end
-        table.clear(rollbacks)
-
-        for _, target in ipairs(themeTargets) do
-            if target.inst and target.inst.Parent then
-                target.inst:Destroy()
-            end
-        end
-        table.clear(themeTargets)
-
-        if Window and Window.Parent then Window:Destroy() end
-    end
-
-    track(CloseButton.MouseButton1Click:Connect(function() Win:Destroy() end))
-
-    track(HideButton.MouseButton1Click:Connect(function()
-        state.hidden = not state.hidden
-        WindowButton.Visible = not state.hidden
-        if state.hidden then closeAllPopups() end
-        IrisX:Notify(state.hidden and "UI hidden" or "UI shown", { Type = "info", Duration = 2, Theme = theme })
-    end))
-
-    track(CollapseButton.MouseButton1Click:Connect(function()
-        state.isOpen = not state.isOpen
-        ChildContainer.Visible = state.isOpen
-        RightResizeGrip.Visible = state.isOpen
-        CollapseArrow.Image = state.isOpen and ICON.DOWN_POINTING_TRIANGLE or ICON.RIGHT_POINTING_TRIANGLE
-        closeAllPopups()
-        if state.isOpen then
-            state.size = Vector2.new(state.size.X, state.expandedSize.Y)
-        else
-            state.expandedSize = state.size
-            state.size = Vector2.new(state.size.X, TitleBar.AbsoluteSize.Y)
-        end
-        applyWindow()
-    end))
-
-    track(UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe or state.keyCapture then return end
-        if input.KeyCode == state.toggleKey then
-            state.hidden = not state.hidden
-            WindowButton.Visible = not state.hidden
-            if state.hidden then closeAllPopups() end
-        end
-    end))
-
-    return Win
+function IrisX.TextWrapped(str)
+	return IrisX.Text(str, true)
+end
+
+function IrisX.Separator()
+	local container = leafGuard()
+	local id = widgetID("##sep")
+	local r = getRecord(id, function(rr)
+		local f = new("Frame", {
+			Size = UDim2.new(1, 0, 0, 1),
+			BorderSizePixel = 0,
+		}, container)
+		bindColor(rr, f, "BackgroundColor3", "SeparatorColor", "BackgroundTransparency", "SeparatorTransparency")
+		rr.container = container
+		return f
+	end)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return r.inst
+end
+
+function IrisX.SeparatorText(label)
+	local container = leafGuard()
+	local id = widgetID("##septext")
+	local r = getRecord(id, function(rr)
+		local row = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local stub = new("Frame", {
+			Size = UDim2.fromOffset(9, 1),
+			BorderSizePixel = 0,
+		}, row)
+		bindColor(rr, stub, "BackgroundColor3", "SeparatorColor", "BackgroundTransparency", "SeparatorTransparency")
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		UIPadding(t, Vector2.new(0, Style.FramePadding.Y))
+		local line = new("Frame", {
+			Size = UDim2.new(0, 0, 0, 1),
+			BorderSizePixel = 0,
+		}, row)
+		new("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill }, line)
+		bindColor(rr, line, "BackgroundColor3", "SeparatorColor", "BackgroundTransparency", "SeparatorTransparency")
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	r.label.Text = tostring(label)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return r.inst
+end
+
+function IrisX.Button(label)
+	local container = leafGuard()
+	local id = widgetID("##btn" .. tostring(label))
+	local r = getRecord(id, function(rr)
+		local b = new("TextButton", {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, frameHeight()),
+			BackgroundColor3 = Style.ButtonColor,
+			BackgroundTransparency = Style.ButtonTransparency,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			AutoButtonColor = false,
+		}, container)
+		textStyle(rr, b)
+		UIPadding(b, Vector2.new(Style.FramePadding.X, 0))
+		bindInteraction(rr, b, b, colorSpec("Button"))
+		bindColor(rr, b, "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency")
+		connect(rr, b.MouseButton1Click, function()
+			rr.clickFrame = Runtime.frame
+		end)
+		rr.container = container
+		return b
+	end)
+	r.inst.Text = tostring(label)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return r.clickFrame == Runtime.frame
+end
+
+function IrisX.Checkbox(label, value)
+	local container = leafGuard()
+	local id = widgetID("##chk" .. tostring(label))
+	local ws = widgetState(id, { value = readVal(value, false) == true })
+	local r = getRecord(id, function(rr)
+		local row = new("TextButton", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local boxSize = frameHeight()
+		local box = new("Frame", {
+			Size = UDim2.fromOffset(boxSize, boxSize),
+			BorderSizePixel = 0,
+		}, row)
+		bindColor(rr, box, "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency")
+		local check = new("ImageLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Image = Icons.Check,
+			ScaleType = Enum.ScaleType.Fit,
+			BorderSizePixel = 0,
+		}, box)
+		UIPadding(check, Vector2.new(3, 3))
+		bindColor(rr, check, "ImageColor3", "CheckMarkColor")
+		bindInteraction(rr, row, box, colorSpec("FrameBg"))
+		connect(rr, row.MouseButton1Click, function()
+			ws.value = not ws.value
+			writeVal(value, ws.value)
+		end)
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		rr.check = check
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	if isState(value) then
+		ws.value = value:Get() == true
+	end
+	r.label.Text = tostring(label)
+	r.check.ImageTransparency = ws.value and Style.CheckMarkTransparency or 1
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return ws.value
+end
+
+function IrisX.RadioButton(label, active)
+	local container = leafGuard()
+	local id = widgetID("##radio" .. tostring(label))
+	local r = getRecord(id, function(rr)
+		local row = new("TextButton", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local btnSize = frameHeight()
+		local outer = new("Frame", {
+			Size = UDim2.fromOffset(btnSize, btnSize),
+			BorderSizePixel = 0,
+		}, row)
+		UICorner(outer, 1)
+		bindColor(rr, outer, "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency")
+		local dot = new("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BorderSizePixel = 0,
+		}, outer)
+		UICorner(dot, 1)
+		UIPadding(dot, Vector2.new(5, 5))
+		bindColor(rr, dot, "BackgroundColor3", "CheckMarkColor")
+		bindInteraction(rr, row, outer, colorSpec("FrameBg"))
+		connect(rr, row.MouseButton1Click, function()
+			rr.clickFrame = Runtime.frame
+			writeVal(active, true)
+		end)
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		rr.dot = dot
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	r.label.Text = tostring(label)
+	r.dot.BackgroundTransparency = readVal(active, false) and Style.CheckMarkTransparency or 1
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return r.clickFrame == Runtime.frame
+end
+
+function IrisX.Slider(label, min, max, value, opts)
+	local container = leafGuard()
+	opts = opts or {}
+	min = min or 0
+	max = max or 100
+	local id = widgetID("##slider" .. tostring(label))
+	local ws = widgetState(id, { value = math.clamp(readVal(value, min), min, max) })
+	local step = opts.Step
+	local precision = opts.Precision
+	if not precision then
+		precision = (step and step >= 1 and step % 1 == 0) and 0 or 2
+	end
+	local function snap(v)
+		v = math.clamp(v, min, max)
+		if step and step > 0 then
+			v = min + math.floor((v - min) / step + 0.5) * step
+		end
+		local p = 10 ^ precision
+		return math.round(v * p) / p
+	end
+	local function fmt(v)
+		return string.format("%." .. precision .. "f", v) .. (opts.Suffix or "")
+	end
+	if isState(value) then
+		ws.value = snap(value:Get())
+	end
+	local r = getRecord(id, function(rr)
+		local row = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local field = new("TextButton", {
+			Size = UDim2.new(Style.ContentWidth, 0, 0, frameHeight()),
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			ClipsDescendants = true,
+		}, row)
+		bindColor(rr, field, "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency")
+		bindInteraction(rr, field, field, colorSpec("FrameBg"))
+		local grab = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0, 0.5),
+			Size = UDim2.new(0, Style.GrabWidth, 1, 0),
+			ZIndex = 5,
+			BorderSizePixel = 0,
+		}, field)
+		bindColor(rr, grab, "BackgroundColor3", "SliderGrabColor", "BackgroundTransparency", "SliderGrabTransparency")
+		bindInteraction(rr, field, grab, {
+			Base = { "BackgroundColor3", "SliderGrabColor", "BackgroundTransparency", "SliderGrabTransparency" },
+			Hovered = { "BackgroundColor3", "SliderGrabColor", "BackgroundTransparency", "SliderGrabTransparency" },
+			Active = { "BackgroundColor3", "SliderGrabActiveColor", "BackgroundTransparency", "SliderGrabActiveTransparency" },
+		})
+		local overlay = new("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = "",
+			ZIndex = 10,
+			ClipsDescendants = true,
+		}, field)
+		textStyle(rr, overlay)
+		overlay.TextXAlignment = Enum.TextXAlignment.Center
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		connect(rr, field.InputBegan, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				rr.dragging = true
+				local x = getMouse().X
+				local abs = field.AbsolutePosition.X
+				local w = field.AbsoluteSize.X
+				local gw = grab.AbsoluteSize.X
+				local pw = w - gw
+				if pw > 0 and max ~= min then
+					local ratio = math.clamp((x - (abs + gw / 2)) / pw, 0, 1)
+					ws.value = snap(min + (max - min) * ratio)
+					writeVal(value, ws.value)
+				end
+			end
+		end)
+		connect(rr, UserInputService.InputChanged, function(input)
+			if not rr.dragging then
+				return
+			end
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				local x = getMouse().X
+				local abs = field.AbsolutePosition.X
+				local w = field.AbsoluteSize.X
+				local gw = grab.AbsoluteSize.X
+				local pw = w - gw
+				if pw > 0 and max ~= min then
+					local ratio = math.clamp((x - (abs + gw / 2)) / pw, 0, 1)
+					ws.value = snap(min + (max - min) * ratio)
+					writeVal(value, ws.value)
+				end
+			end
+		end)
+		connect(rr, UserInputService.InputEnded, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				rr.dragging = false
+			end
+		end)
+		rr.field = field
+		rr.grab = grab
+		rr.overlay = overlay
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	local w = r.field.AbsoluteSize.X
+	local gw = r.grab.AbsoluteSize.X
+	local pw = w - gw
+	if pw > 0 and max ~= min then
+		local ratio = (ws.value - min) / (max - min)
+		r.grab.Position = UDim2.fromScale((pw / w) * ratio + (1 - pw / w) / 2, 0.5)
+	end
+	r.overlay.Text = fmt(ws.value)
+	r.label.Text = tostring(label)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return ws.value
+end
+
+function IrisX.InputText(label, value, opts)
+	local container = leafGuard()
+	opts = opts or {}
+	local id = widgetID("##input" .. tostring(label))
+	local ws = widgetState(id, { text = tostring(readVal(value, "")) })
+	local r = getRecord(id, function(rr)
+		local row = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local field = new("TextBox", {
+			Size = UDim2.new(Style.ContentWidth, 0, 0, frameHeight()),
+			BorderSizePixel = 0,
+			Text = ws.text,
+			PlaceholderText = opts.Placeholder or "",
+			ClearTextOnFocus = false,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		}, row)
+		bindColor(rr, field, "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency")
+		bindColor(rr, field, "PlaceholderColor3", "TextDisabledColor")
+		bindInteraction(rr, field, field, colorSpec("FrameBg"))
+		textStyle(rr, field)
+		UIPadding(field, Style.FramePadding)
+		connect(rr, field.FocusLost, function()
+			ws.text = field.Text
+			rr.submittedFrame = Runtime.frame
+			writeVal(value, ws.text)
+		end)
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		rr.field = field
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	if not r.field:IsFocused() and isState(value) then
+		local v = tostring(value:Get())
+		if r.field.Text ~= v then
+			r.field.Text = v
+		end
+	end
+	ws.text = r.field.Text
+	r.label.Text = tostring(label)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return ws.text, r.submittedFrame == Runtime.frame
+end
+
+function IrisX.Combo(label, items, value)
+	local container = leafGuard()
+	items = items or {}
+	local id = widgetID("##combo" .. tostring(label))
+	local ws = widgetState(id, { value = readVal(value, items[1]), open = false })
+	ws.items = items
+	if isState(value) then
+		ws.value = value:Get()
+	end
+	local r = getRecord(id, function(rr)
+		local row = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local fh = frameHeight()
+		local preview = new("TextButton", {
+			Size = UDim2.new(Style.ContentWidth, 0, 0, fh),
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			ClipsDescendants = true,
+			ZIndex = 2,
+		}, row)
+		bindColor(rr, preview, "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", "FrameBgTransparency")
+		bindInteraction(rr, preview, preview, colorSpec("FrameBg"))
+		local previewText = new("TextLabel", {
+			Size = UDim2.new(1, -fh, 1, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(ws.value),
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		}, preview)
+		textStyle(rr, previewText)
+		UIPadding(previewText, Style.FramePadding)
+		local arrowBox = new("Frame", {
+			Size = UDim2.new(0, fh, 1, 0),
+			Position = UDim2.new(1, -fh, 0, 0),
+			BorderSizePixel = 0,
+		}, preview)
+		bindColor(rr, arrowBox, "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency")
+		local arrow = new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(math.floor(fh * 0.6), math.floor(fh * 0.6)),
+			BackgroundTransparency = 1,
+			Image = Icons.Down,
+			ScaleType = Enum.ScaleType.Fit,
+			BorderSizePixel = 0,
+		}, arrowBox)
+		bindColor(rr, arrow, "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency")
+		connect(rr, preview.MouseButton1Click, function()
+			if ws.open then
+				local pr = ws.popupRec
+				if pr then
+					pcall(pr.closeFn)
+				end
+			else
+				closeAllPopups()
+				ws.open = true
+			end
+		end)
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		rr.preview = preview
+		rr.previewText = previewText
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	r.previewText.Text = tostring(ws.value)
+	r.label.Text = tostring(label)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	if ws.open then
+		local pr = getRecord(id .. "$popup", function(prr)
+			local popup = new("ScrollingFrame", {
+				BorderSizePixel = 0,
+				AutomaticCanvasSize = Enum.AutomaticSize.Y,
+				CanvasSize = UDim2.fromScale(0, 0),
+				ScrollBarImageTransparency = Style.ScrollbarGrabTransparency,
+				ScrollBarImageColor3 = Style.ScrollbarGrabColor,
+				ScrollBarThickness = Style.ScrollbarSize,
+				VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
+				TopImage = Icons.Scroll,
+				MidImage = Icons.Scroll,
+				BottomImage = Icons.Scroll,
+				ClipsDescendants = true,
+				Visible = false,
+				ZIndex = 500,
+			}, PopupGui)
+			UIStroke(popup, 1, Style.BorderColor, Style.BorderTransparency)
+			UIPadding(popup, Vector2.new(2, Style.WindowPadding.Y))
+			UIListLayout(popup, Enum.FillDirection.Vertical, UDim.new(0, Style.ItemSpacing.Y))
+			bindColor(prr, popup, "BackgroundColor3", "PopupBgColor", "BackgroundTransparency", "PopupBgTransparency")
+			bindColor(prr, popup, "ScrollBarImageColor3", "ScrollbarGrabColor", "ScrollBarImageTransparency", "ScrollbarGrabTransparency")
+			prr.closeFn = function()
+				if not ws.open then
+					return
+				end
+				ws.open = false
+				pcall(function()
+					popup.Visible = false
+				end)
+				local i = table.find(OpenPopups, prr)
+				if i then
+					table.remove(OpenPopups, i)
+				end
+			end
+			return popup
+		end)
+		ws.popupRec = pr
+		local vp = getViewport()
+		local fh = frameHeight()
+		local n = #items
+		local contentH = n * fh + math.max(0, n - 1) * Style.ItemSpacing.Y + Style.WindowPadding.Y * 2 + 4
+		local h = math.min(contentH, 200)
+		local p = r.preview.AbsolutePosition
+		local fw = r.preview.AbsoluteSize.X
+		local x = math.clamp(p.X, 0, math.max(0, vp.X - fw))
+		local y = p.Y + r.preview.AbsoluteSize.Y + 2
+		if y + h > vp.Y and p.Y - h - 2 >= 0 then
+			y = p.Y - h - 2
+		end
+		pr.inst.Position = UDim2.fromOffset(x, y)
+		pr.inst.Size = UDim2.fromOffset(fw, h)
+		if not table.find(OpenPopups, pr) then
+			table.insert(OpenPopups, pr)
+		end
+		ContainerOrders[pr.inst] = 0
+		for i = 1, n do
+			local oi = i
+			local optR = getRecord(id .. "$opt" .. oi, function(orr)
+				local ob = new("TextButton", {
+					Size = UDim2.new(1, 0, 0, fh),
+					BorderSizePixel = 0,
+					Text = tostring(items[oi]),
+					AutoButtonColor = false,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+				}, pr.inst)
+				textStyle(orr, ob)
+				UIPadding(ob, Style.FramePadding)
+				bindInteraction(orr, ob, ob, {
+					Base = { "BackgroundColor3", "FrameBgColor", "BackgroundTransparency", 1 },
+					Hovered = { "BackgroundColor3", "FrameBgHoveredColor", "BackgroundTransparency", "FrameBgHoveredTransparency" },
+					Active = { "BackgroundColor3", "FrameBgActiveColor", "BackgroundTransparency", "FrameBgActiveTransparency" },
+				})
+				local check = new("ImageLabel", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -4, 0.5, 0),
+					Size = UDim2.fromOffset(12, 12),
+					BackgroundTransparency = 1,
+					Image = Icons.Check,
+					ScaleType = Enum.ScaleType.Fit,
+					BorderSizePixel = 0,
+				}, ob)
+				bindColor(orr, check, "ImageColor3", "CheckMarkColor")
+				connect(orr, ob.MouseButton1Click, function()
+					local v = ws.items[oi]
+					if v ~= nil then
+						ws.value = v
+						writeVal(value, v)
+					end
+					local pr2 = ws.popupRec
+					if pr2 then
+						pcall(pr2.closeFn)
+					end
+				end)
+				orr.check = check
+				orr.container = pr.inst
+				return ob
+			end)
+			optR.inst.Text = tostring(items[oi])
+			optR.check.Visible = ws.value == items[oi]
+			optR.inst.LayoutOrder = nextOrder(optR.container)
+		end
+	end
+	return ws.value
+end
+
+function IrisX.Keybind(label, value)
+	local container = leafGuard()
+	local id = widgetID("##key" .. tostring(label))
+	local ws = widgetState(id, { key = readVal(value, Enum.KeyCode.Unknown) })
+	local r = getRecord(id, function(rr)
+		local b = new("TextButton", {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, frameHeight()),
+			BorderSizePixel = 0,
+			Text = tostring(label),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			AutoButtonColor = false,
+		}, container)
+		bindColor(rr, b, "BackgroundColor3", "ButtonColor", "BackgroundTransparency", "ButtonTransparency")
+		bindInteraction(rr, b, b, colorSpec("Button"))
+		textStyle(rr, b)
+		UIPadding(b, Vector2.new(Style.FramePadding.X, 0))
+		local function stopListening()
+			rr.listening = false
+			task.defer(function()
+				if not rr.listening then
+					Runtime.keyCapture = false
+				end
+			end)
+		end
+		connect(rr, b.MouseButton1Click, function()
+			rr.listening = true
+			Runtime.keyCapture = true
+		end)
+		connect(rr, UserInputService.InputBegan, function(input, gpe)
+			if not rr.listening or gpe then
+				return
+			end
+			if input.UserInputType == Enum.UserInputType.Keyboard then
+				ws.key = (input.KeyCode == Enum.KeyCode.Escape) and Enum.KeyCode.Unknown or input.KeyCode
+				writeVal(value, ws.key)
+				stopListening()
+			elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				stopListening()
+			end
+		end)
+		rr.container = container
+		return b
+	end)
+	r.inst.Text = rr.listening and (tostring(label) .. ": ...") or (tostring(label) .. ": " .. ws.key.Name)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	return ws.key
+end
+
+function IrisX.BeginGroup()
+	local container = leafGuard()
+	local id = widgetID("##group")
+	local r = getRecord(id, function(rr)
+		local f = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, container)
+		local l = UIListLayout(f, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		rr.container = container
+		return f
+	end)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	PushRegion("group", r, r.inst)
+end
+
+function IrisX.EndGroup()
+	PopRegion("group")
+end
+
+function IrisX.BeginTabBar(id)
+	if not CurrentContainer() then
+		return false
+	end
+	local wid = widgetID("##tabbar" .. tostring(id))
+	local ws = widgetState(wid, { active = nil })
+	local r = getRecord(wid, function(rr)
+		local bar = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, CurrentContainer())
+		UIListLayout(bar, Enum.FillDirection.Vertical, UDim.new(0, 0))
+		local rows = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, bar)
+		UIListLayout(rows, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		local underline = new("Frame", {
+			Size = UDim2.new(1, 0, 0, 1),
+			BorderSizePixel = 0,
+		}, bar)
+		bindColor(rr, underline, "BackgroundColor3", "TabActiveColor", "BackgroundTransparency", "TabActiveTransparency")
+		local host = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+		}, bar)
+		UIPadding(host, Vector2.new(0, Style.ItemSpacing.Y))
+		UIListLayout(host, Enum.FillDirection.Vertical, UDim.new(0, Style.ItemSpacing.Y))
+		rr.rows = rows
+		rr.host = host
+		rr.state = ws
+		return bar
+	end)
+	r.inst.LayoutOrder = nextOrder(CurrentContainer())
+	PushRegion("tabbar", r, r.host)
+	return true
+end
+
+function IrisX.EndTabBar()
+	PopRegion("tabbar")
+end
+
+function IrisX.BeginTabItem(name)
+	local barRegion = findRegion("tabbar")
+	if not barRegion then
+		PushRegion("tab", nil, nil)
+		return false
+	end
+	local barRec = barRegion.rec
+	local barWs = barRec.state
+	local wid = widgetID("##tab" .. tostring(name))
+	local r = getRecord(wid, function(rr)
+		local btn = new("TextButton", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			Size = UDim2.fromOffset(0, 0),
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, barRec.rows)
+		UIPadding(btn, Vector2.new(Style.FramePadding.X, Style.FramePadding.Y))
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(name),
+		}, btn)
+		textStyle(rr, t)
+		bindInteraction(rr, btn, btn, {
+			Base = { "BackgroundColor3", "TabColor", "BackgroundTransparency", "TabTransparency" },
+			Hovered = { "BackgroundColor3", "TabHoveredColor", "BackgroundTransparency", "TabHoveredTransparency" },
+			Active = { "BackgroundColor3", "TabActiveColor", "BackgroundTransparency", "TabActiveTransparency" },
+		})
+		bindColor(rr, btn, "BackgroundColor3", "TabColor", "BackgroundTransparency", "TabTransparency")
+		connect(rr, btn.MouseButton1Click, function()
+			barWs.active = wid
+			closeAllPopups()
+		end)
+		rr.btn = btn
+		rr.label = t
+		rr.container = barRec.rows
+		return btn
+	end)
+	r.label.Text = tostring(name)
+	r.inst.LayoutOrder = nextOrder(r.container)
+	if not barWs.active then
+		barWs.active = wid
+	end
+	local active = (barWs.active == wid)
+	if not r.hovered and not r.pressed then
+		if active then
+			r.btn.BackgroundColor3 = Style.TabActiveColor
+			r.btn.BackgroundTransparency = Style.TabActiveTransparency
+		else
+			r.btn.BackgroundColor3 = Style.TabColor
+			r.btn.BackgroundTransparency = Style.TabTransparency
+		end
+	end
+	if active then
+		local body = getRecord(wid .. "$body", function(brr)
+			local f = new("Frame", {
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Size = UDim2.new(1, 0, 0, 0),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+			}, barRec.host)
+			UIListLayout(f, Enum.FillDirection.Vertical, UDim.new(0, Style.ItemSpacing.Y))
+			return f
+		end)
+		body.inst.LayoutOrder = nextOrder(barRec.host)
+		PushRegion("tab", r, body.inst)
+	else
+		PushRegion("tab", r, nil)
+	end
+	return active
+end
+
+function IrisX.EndTabItem()
+	PopRegion("tab")
+end
+
+local function nodeImpl(label, headerMode)
+	local container = leafGuard()
+	local id = widgetID("##node" .. tostring(label))
+	local ws = widgetState(id, { open = false })
+	local r = getRecord(id, function(rr)
+		local row = new("TextButton", {
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, container)
+		local l = UIListLayout(row, Enum.FillDirection.Horizontal, UDim.new(0, Style.ItemInnerSpacing.X))
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		local arrow = new("ImageLabel", {
+			Size = UDim2.fromOffset(Style.TextSize, Style.TextSize),
+			BackgroundTransparency = 1,
+			Image = Icons.Right,
+			ScaleType = Enum.ScaleType.Fit,
+			BorderSizePixel = 0,
+		}, row)
+		bindColor(rr, arrow, "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency")
+		local t = new("TextLabel", {
+			AutomaticSize = Enum.AutomaticSize.XY,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(label),
+		}, row)
+		textStyle(rr, t)
+		if headerMode then
+			bindInteraction(rr, row, row, colorSpec("Header"))
+			bindColor(rr, row, "BackgroundColor3", "HeaderColor", "BackgroundTransparency", "HeaderTransparency")
+		else
+			bindInteraction(rr, row, row, {
+				Base = { "BackgroundColor3", "HeaderColor", "BackgroundTransparency", 1 },
+				Hovered = { "BackgroundColor3", "HeaderHoveredColor", "BackgroundTransparency", "HeaderHoveredTransparency" },
+				Active = { "BackgroundColor3", "HeaderActiveColor", "BackgroundTransparency", "HeaderActiveTransparency" },
+			})
+		end
+		connect(rr, row.MouseButton1Click, function()
+			ws.open = not ws.open
+		end)
+		rr.arrow = arrow
+		rr.label = t
+		rr.container = container
+		return row
+	end)
+	r.label.Text = tostring(label)
+	r.arrow.Image = ws.open and Icons.Down or Icons.Right
+	r.inst.LayoutOrder = nextOrder(r.container)
+	if ws.open then
+		local body = getRecord(id .. "$body", function(brr)
+			local f = new("Frame", {
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Size = UDim2.new(1, 0, 0, 0),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+			}, r.container)
+			UIListLayout(f, Enum.FillDirection.Vertical, UDim.new(0, Style.ItemSpacing.Y))
+			if not headerMode then
+				UIPadding(f, Vector2.new(Style.ItemInnerSpacing.X, 0))
+			end
+			return f
+		end)
+		body.inst.LayoutOrder = nextOrder(r.container)
+		PushRegion("tree", r, body.inst)
+	else
+		PushRegion("tree", r, nil)
+	end
+	return ws.open
+end
+
+function IrisX.TreeNode(label)
+	return nodeImpl(label, false)
+end
+
+function IrisX.CollapsingHeader(label)
+	return nodeImpl(label, true)
+end
+
+function IrisX.TreePop()
+	PopRegion("tree")
+end
+
+function IrisX.BeginWindow(title, opts)
+	opts = opts or {}
+	if not RootGui then
+		warn("[IrisX] BeginWindow called before Init")
+		return false
+	end
+	local id = "window/" .. tostring(title)
+	local ws = widgetState(id, {
+		pos = opts.Position or Vector2.new(150, 150),
+		size = opts.Size or Vector2.new(320, 400),
+		expanded = opts.Size or Vector2.new(320, 400),
+		open = true,
+		collapsed = false,
+	})
+	local r = getRecord(id, function(rr)
+		local win = new("Frame", {
+			Name = "IrisX_Window",
+			BorderSizePixel = 0,
+		}, RootGui)
+		bindColor(rr, win, "BackgroundColor3", "WindowBgColor", "BackgroundTransparency", "WindowBgTransparency")
+		local stroke = UIStroke(win, Style.WindowBorderSize, Style.BorderColor, Style.BorderTransparency)
+		bindColor(rr, stroke, "Color", "BorderColor", "Transparency", "BorderTransparency")
+		UIListLayout(win, Enum.FillDirection.Vertical, UDim.new(0, 0))
+		local barH = frameHeight()
+		local btnSize = Style.TextSize + (Style.FramePadding.Y - 1) * 2
+		local titleBar = new("Frame", {
+			Size = UDim2.new(1, 0, 0, barH),
+			BorderSizePixel = 0,
+			ClipsDescendants = true,
+			LayoutOrder = 1,
+		}, win)
+		bindColor(rr, titleBar, "BackgroundColor3", "TitleBgActiveColor", "BackgroundTransparency", "TitleBgActiveTransparency")
+		local collapse = new("TextButton", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, Style.FramePadding.X, 0.5, 0),
+			Size = UDim2.fromOffset(btnSize, btnSize),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, titleBar)
+		UICorner(collapse, 1)
+		bindInteraction(rr, collapse, collapse, {
+			Base = { "BackgroundTransparency", 1, "BackgroundColor3", "ButtonColor" },
+			Hovered = { "BackgroundColor3", "ButtonHoveredColor", "BackgroundTransparency", "ButtonHoveredTransparency" },
+			Active = { "BackgroundColor3", "ButtonActiveColor", "BackgroundTransparency", "ButtonActiveTransparency" },
+		})
+		local arrow = new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(math.floor(btnSize * 0.7), math.floor(btnSize * 0.7)),
+			BackgroundTransparency = 1,
+			Image = Icons.Down,
+			ScaleType = Enum.ScaleType.Fit,
+			BorderSizePixel = 0,
+		}, collapse)
+		bindColor(rr, arrow, "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency")
+		local titleLabel = new("TextLabel", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, Style.FramePadding.X * 2 + btnSize + Style.ItemInnerSpacing.X, 0.5, 0),
+			Size = UDim2.new(1, -(Style.FramePadding.X * 3 + btnSize * 2 + Style.ItemInnerSpacing.X * 2), 1, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(title),
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		}, titleBar)
+		textStyle(rr, titleLabel)
+		local close = new("TextButton", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -Style.FramePadding.X, 0.5, 0),
+			Size = UDim2.fromOffset(btnSize, btnSize),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+		}, titleBar)
+		UICorner(close, 1)
+		bindInteraction(rr, close, close, {
+			Base = { "BackgroundTransparency", 1, "BackgroundColor3", "ButtonColor" },
+			Hovered = { "BackgroundColor3", "ButtonHoveredColor", "BackgroundTransparency", "ButtonHoveredTransparency" },
+			Active = { "BackgroundColor3", "ButtonActiveColor", "BackgroundTransparency", "ButtonActiveTransparency" },
+		})
+		local closeIcon = new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(math.floor(btnSize * 0.7), math.floor(btnSize * 0.7)),
+			BackgroundTransparency = 1,
+			Image = Icons.Close,
+			ScaleType = Enum.ScaleType.Fit,
+			BorderSizePixel = 0,
+		}, close)
+		bindColor(rr, closeIcon, "ImageColor3", "TextColor", "ImageTransparency", "TextTransparency")
+		local content = new("ScrollingFrame", {
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			CanvasSize = UDim2.fromScale(0, 0),
+			ScrollBarThickness = Style.ScrollbarSize,
+			VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
+			TopImage = Icons.Scroll,
+			MidImage = Icons.Scroll,
+			BottomImage = Icons.Scroll,
+			LayoutOrder = 2,
+			ClipsDescendants = true,
+		}, win)
+		new("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill }, content)
+		UIPadding(content, Style.WindowPadding)
+		UIListLayout(content, Enum.FillDirection.Vertical, UDim.new(0, Style.ItemSpacing.Y))
+		bindColor(rr, content, "ScrollBarImageColor3", "ScrollbarGrabColor", "ScrollBarImageTransparency", "ScrollbarGrabTransparency")
+		local gripSize = Style.TextSize + Style.FramePadding.X
+		local grip = new("ImageButton", {
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.fromScale(1, 1),
+			Size = UDim2.fromOffset(gripSize, gripSize),
+			BackgroundTransparency = 1,
+			Image = Icons.Grip,
+			Rotation = 90,
+			AutoButtonColor = false,
+			ZIndex = 5,
+			BorderSizePixel = 0,
+		}, win)
+		bindColor(rr, grip, "ImageColor3", "ResizeGripColor", "ImageTransparency", "ResizeGripTransparency")
+		bindInteraction(rr, grip, grip, imageSpec("ResizeGrip"))
+		local rightEdge = new("ImageButton", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.new(0, Style.ResizePadding, 1, 0),
+			BackgroundTransparency = 1,
+			ImageTransparency = 1,
+			AutoButtonColor = false,
+			ZIndex = 4,
+		}, win)
+		local bottomEdge = new("ImageButton", {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 1, 0),
+			Size = UDim2.new(1, 0, 0, Style.ResizePadding),
+			BackgroundTransparency = 1,
+			ImageTransparency = 1,
+			AutoButtonColor = false,
+			ZIndex = 4,
+		}, win)
+		rr.dragging = false
+		rr.resizing = false
+		connect(rr, titleBar.InputBegan, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				rr.dragging = true
+				rr.dragDelta = getMouse() - ws.pos
+				maxZ += 1
+				win.ZIndex = maxZ
+				closeAllPopups()
+			end
+		end)
+		local function startResize()
+			if ws.collapsed then
+				return
+			end
+			rr.resizing = true
+			rr.lastMouse = getMouse()
+			maxZ += 1
+			win.ZIndex = maxZ
+			closeAllPopups()
+		end
+		for _, el in ipairs({ grip, rightEdge, bottomEdge }) do
+			connect(rr, el.InputBegan, function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					startResize()
+				end
+			end)
+		end
+		connect(rr, UserInputService.InputChanged, function(input)
+			if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+			if rr.dragging then
+				ws.pos = clampWindowPos(getMouse() - rr.dragDelta, ws)
+			elseif rr.resizing then
+				local m = getMouse()
+				local d = m - rr.lastMouse
+				rr.lastMouse = m
+				ws.expanded = clampWindowSize(ws.expanded + d)
+				ws.size = ws.expanded
+			end
+		end)
+		connect(rr, UserInputService.InputEnded, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				rr.dragging = false
+				rr.resizing = false
+			end
+		end)
+		connect(rr, content:GetPropertyChangedSignal("CanvasPosition"), closeAllPopups)
+		connect(rr, close.MouseButton1Click, function()
+			ws.open = false
+			writeVal(opts.Open, false)
+			closeAllPopups()
+		end)
+		connect(rr, collapse.MouseButton1Click, function()
+			ws.collapsed = not ws.collapsed
+			closeAllPopups()
+		end)
+		rr.win = win
+		rr.content = content
+		rr.titleLabel = titleLabel
+		rr.arrow = arrow
+		rr.close = close
+		rr.collapse = collapse
+		rr.grip = grip
+		rr.rightEdge = rightEdge
+		rr.bottomEdge = bottomEdge
+		rr.isWindow = true
+		return win
+	end)
+	if isState(opts.Open) then
+		ws.open = opts.Open:Get()
+	end
+	if not ws.open then
+		r.inst.Visible = false
+		PushRegion("window", r, nil)
+		return false
+	end
+	if ws.collapsed then
+		ws.expanded = ws.size
+	else
+		ws.size = ws.expanded
+	end
+	local barH = frameHeight()
+	local visibleSize = ws.collapsed and Vector2.new(ws.expanded.X, barH + 2) or ws.expanded
+	ws.pos = clampWindowPos(ws.pos, ws)
+	r.inst.Position = UDim2.fromOffset(ws.pos.X, ws.pos.Y)
+	r.inst.Size = UDim2.fromOffset(visibleSize.X, visibleSize.Y)
+	r.content.Visible = not ws.collapsed
+	r.grip.Visible = (not ws.collapsed) and (not opts.NoResize)
+	r.rightEdge.Visible = (not ws.collapsed) and (not opts.NoResize)
+	r.bottomEdge.Visible = (not ws.collapsed) and (not opts.NoResize)
+	r.close.Visible = not opts.NoClose
+	r.collapse.Visible = not opts.NoCollapse
+	r.arrow.Image = ws.collapsed and Icons.Right or Icons.Down
+	r.titleLabel.Text = tostring(title)
+	PushRegion("window", r, r.content)
+	return true
+end
+
+function IrisX.End()
+	PopRegion("window")
+end
+
+function IrisX.SetWindowOpen(title, open)
+	local ws = WidgetStates["window/" .. tostring(title)]
+	if ws then
+		ws.open = open and true or false
+	end
+end
+
+IrisX.PushID = PushID
+IrisX.PopID = PopID
+
+function IrisX.IsRunning()
+	return Runtime.running
+end
+
+local function postFrame()
+	local f = Runtime.frame
+	for i = #OpenPopups, 1, -1 do
+		local pr = OpenPopups[i]
+		if pr.frame ~= f then
+			pcall(pr.closeFn)
+		end
+	end
+	for id, r in pairs(Records) do
+		if r.frame ~= f then
+			if r.inst.Visible then
+				r.inst.Visible = false
+			end
+			if f - r.frame > 300 then
+				destroyRecord(r)
+				Records[id] = nil
+			end
+		end
+	end
+	local vp = getViewport()
+	for id, r in pairs(Records) do
+		if r.isWindow and r.inst.Visible then
+			local ws = WidgetStates[id]
+			if ws and (ws.pos.Y > vp.Y - 40 or ws.pos.X > vp.X - 60) then
+				ws.pos = Vector2.new(
+					math.min(ws.pos.X, math.max(0, vp.X - 60)),
+					math.min(ws.pos.Y, math.max(0, vp.Y - 40))
+				)
+				r.inst.Position = UDim2.fromOffset(ws.pos.X, ws.pos.Y)
+			end
+		end
+	end
+end
+
+function IrisX.Connect(fn)
+	Runtime.callback = fn
+end
+
+local function Shutdown()
+	if not Runtime.running then
+		return
+	end
+	Runtime.running = false
+	Runtime.callback = nil
+	Runtime.keyCapture = false
+	if Runtime.conn then
+		pcall(function()
+			Runtime.conn:Disconnect()
+		end)
+		Runtime.conn = nil
+	end
+	for _, c in ipairs(Runtime.connections) do
+		pcall(function()
+			c:Disconnect()
+		end)
+	end
+	table.clear(Runtime.connections)
+	for _, r in pairs(Records) do
+		destroyRecord(r)
+	end
+	table.clear(Records)
+	table.clear(WidgetStates)
+	table.clear(AllStates)
+	table.clear(OpenPopups)
+	table.clear(ActiveNotifications)
+	table.clear(ActiveByKey)
+	for _, gui in ipairs({ RootGui, PopupGui, NotifyGui }) do
+		if gui and gui.Parent then
+			gui:Destroy()
+		end
+	end
+	RootGui, PopupGui, NotifyGui = nil, nil, nil
+	G.__IRISX_RUNTIME = nil
+end
+
+function IrisX.Shutdown()
+	Shutdown()
+end
+
+local function Init(config)
+	if Runtime.running then
+		return IrisX
+	end
+	config = config or {}
+	Runtime.toggleKey = config.Keybind or Enum.KeyCode.Insert
+	loadTheme(config.Theme or "dark")
+	for _, gui in ipairs(PlayerGui:GetChildren()) do
+		if gui:IsA("ScreenGui") and (gui.Name == "IrisX" or gui.Name == "IrisX_Popups" or gui.Name == "IrisX_Notify") then
+			gui:Destroy()
+		end
+	end
+	RootGui = new("ScreenGui", {
+		Name = "IrisX",
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 127,
+	}, PlayerGui)
+	PopupGui = new("ScreenGui", {
+		Name = "IrisX_Popups",
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 999,
+	}, PlayerGui)
+	NotifyGui = new("ScreenGui", {
+		Name = "IrisX_Notify",
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 9999,
+	}, PlayerGui)
+	table.insert(Runtime.connections, UserInputService.InputBegan:Connect(function(input, gpe)
+		if not gpe and not Runtime.keyCapture and input.KeyCode == Runtime.toggleKey then
+			RootGui.Enabled = not RootGui.Enabled
+			if not RootGui.Enabled then
+				closeAllPopups()
+			end
+		end
+	end))
+	table.insert(Runtime.connections, UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			local m = getMouse()
+			for i = #OpenPopups, 1, -1 do
+				local pr = OpenPopups[i]
+				if not inBounds(m, pr.inst) and not (pr.preview and inBounds(m, pr.preview)) then
+					pcall(pr.closeFn)
+				end
+			end
+		end
+	end))
+	table.insert(Runtime.connections, RunService.Heartbeat:Connect(tickNotifications))
+	Runtime.running = true
+	Runtime.conn = RunService.Heartbeat:Connect(function()
+		Runtime.frame += 1
+		FrameCounters = {}
+		IDStack = { "" }
+		RegionStack = {}
+		ContainerStack = {}
+		ContainerOrders = {}
+		for _, s in ipairs(AllStates) do
+			s._changed = false
+		end
+		if Runtime.callback then
+			local ok, err = pcall(Runtime.callback)
+			if ok then
+				Runtime.lastError = nil
+			elseif err ~= Runtime.lastError then
+				Runtime.lastError = err
+				warn("[IrisX] " .. tostring(err))
+			end
+		end
+		postFrame()
+	end)
+	G.__IRISX_RUNTIME = { Shutdown = Shutdown }
+	return IrisX
+end
+
+IrisX.Init = Init
+
+function IrisX.ShowDemoWindow()
+	local ds = widgetState("demo", {})
+	ds.check = ds.check or State(false)
+	ds.slider = ds.slider or State(50)
+	ds.text = ds.text or State("")
+	ds.combo = ds.combo or State("Alpha")
+	ds.radio = ds.radio or State("A")
+	ds.key = ds.key or State(Enum.KeyCode.Unknown)
+	if IrisX.BeginWindow("Iris-X Demo", { Size = Vector2.new(380, 470), Position = Vector2.new(220, 140) }) then
+		IrisX.Text("Every frame is rebuilt from scratch.")
+		IrisX.TextWrapped("Toggle key: " .. Runtime.toggleKey.Name)
+		IrisX.SeparatorText("Widgets")
+		IrisX.BeginGroup()
+		if IrisX.Button("Notify") then
+			IrisX.Notify("Hello from Iris-X " .. IrisX.Version, { Type = "success" })
+		end
+		if IrisX.Button("Theme") then
+			IrisX.SetTheme(IrisX.GetTheme() == "dark" and "light" or "dark")
+		end
+		if IrisX.Button("Unload") then
+			IrisX.Shutdown()
+			return
+		end
+		IrisX.EndGroup()
+		local checked = IrisX.Checkbox("Extra section", ds.check)
+		IrisX.TextWrapped("Checkbox: " .. (checked and "on" or "off"))
+		if checked then
+			local s = IrisX.Slider("Slider", 0, 100, ds.slider, { Step = 1 })
+			IrisX.ProgressBar(s / 100, { Text = math.floor(s + 0.5) .. "/100" })
+			local text, submitted = IrisX.InputText("Input", ds.text, { Placeholder = "type, press enter" })
+			if submitted and text ~= "" then
+				IrisX.Notify("Submitted: " .. text, { Type = "info" })
+			end
+			local picked = IrisX.Combo("Combo", { "Alpha", "Beta", "Gamma" }, ds.combo)
+			IrisX.Text("Combo: " .. tostring(picked))
+			IrisX.BeginGroup()
+			if IrisX.RadioButton("A", ds.radio:Get() == "A") then
+				ds.radio:Set("A")
+			end
+			if IrisX.RadioButton("B", ds.radio:Get() == "B") then
+				ds.radio:Set("B")
+			end
+			IrisX.EndGroup()
+			IrisX.Text("Radio: " .. ds.radio:Get())
+			local k = IrisX.Keybind("Keybind", ds.key)
+			IrisX.Text("Key: " .. k.Name)
+		end
+		IrisX.SeparatorText("Tabs")
+		if IrisX.BeginTabBar("demo") then
+			if IrisX.BeginTabItem("Tree") then
+				local open = IrisX.CollapsingHeader("Header")
+				if open then
+					IrisX.Text("Under collapsing header.")
+				end
+				IrisX.TreePop()
+				local nodeOpen = IrisX.TreeNode("Node")
+				if nodeOpen then
+					IrisX.Text("Nested inside tree node.")
+					if IrisX.Button("Deep button") then
+						IrisX.Notify("Deep click", { Type = "warning" })
+					end
+				end
+				IrisX.TreePop()
+			IrisX.EndTabItem()
+			if IrisX.BeginTabItem("About") then
+				IrisX.TextWrapped(IrisX.Version .. ": immediate mode, ID stack, widget pool, persistent states.")
+			IrisX.EndTabItem()
+		IrisX.EndTabBar()
+	end
+	IrisX.End()
 end
 
 return IrisX
